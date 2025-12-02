@@ -59,6 +59,15 @@ struct MemorialListView: View {
         }
         .navigationTitle("Tus memoriales")
         .toolbar {
+            // Botón "Unirme" a la izquierda (por ejemplo)
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink {
+                    JoinMemorialView()
+                        .environmentObject(viewModel)
+                } label: {
+                    Image(systemName: "person.crop.circle.badge.plus")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showingNewMemorialSheet = true
