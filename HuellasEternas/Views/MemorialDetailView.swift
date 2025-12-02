@@ -29,6 +29,13 @@ struct MemorialDetailView: View {
         _viewModel = StateObject(wrappedValue: MemorialDetailViewModel(memorial: memorial))
     }
 
+    // URL que vamos a compartir. Más adelante esta URL puede ser real (landing o deep link).
+    private var shareURL: URL {
+        // OJO: cambia el dominio por el que vayas a usar realmente
+        let token = viewModel.memorial.shareToken
+        return URL(string: "https://huellas.app/m/\(token)")!
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -161,6 +168,18 @@ struct MemorialDetailView: View {
         // recargar cuando la vista aparece (aunque el init ya lo hace)
         .task {
             await viewModel.loadCandles()
+        }
+        // 👇 Añadimos toolbar con botón compartir
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(
+                    item: shareURL,
+                    subject: Text("Memorial para \(viewModel.memorial.name)"),
+                    message: Text("He creado este memorial para \(viewModel.memorial.name). Puedes verlo y encender una vela en su honor: \(shareURL.absoluteString)")
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
         }
         // Sheet con el formulario de vela
         .sheet(isPresented: $showCandleFormSheet) {

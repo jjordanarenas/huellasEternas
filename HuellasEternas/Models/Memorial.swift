@@ -7,24 +7,22 @@
 
 import Foundation
 
-// Modelo principal de un memorial.
-// Conforma a Identifiable para poder usarlo en ForEach/List.
-// También Hashable por si lo necesitamos en NavigationStack.
 struct Memorial: Identifiable, Hashable, Codable {
-    let id: UUID          // identificador único
-    
-    var name: String      // nombre de la mascota
-    var petType: PetType  // tipo de mascota
-    
-    var birthDate: Date?  // fecha de nacimiento (opcional)
-    var deathDate: Date?  // fecha de fallecimiento (opcional)
-    
-    var shortQuote: String? // frase corta tipo "Gracias por todo lo que me diste"
+    let id: UUID
+
+    var name: String
+    var petType: PetType
+    var birthDate: Date?
+    var deathDate: Date?
+    var shortQuote: String?
 
     var createdAt: Date
     var updatedAt: Date
-    // Más adelante aquí añadiremos URL de foto principal, etc.
-    
+
+    /// Código que usaremos para compartir este memorial con amigos/familia.
+    /// Puede ser un string corto, legible, que incluimos también en un link.
+    var shareToken: String
+
     init(id: UUID,
          name: String,
          petType: PetType,
@@ -32,7 +30,8 @@ struct Memorial: Identifiable, Hashable, Codable {
          deathDate: Date? = nil,
          shortQuote: String? = nil,
          createdAt: Date = Date(),
-         updatedAt: Date = Date()) {
+         updatedAt: Date = Date(),
+         shareToken: String) {
 
         self.id = id
         self.name = name
@@ -42,30 +41,38 @@ struct Memorial: Identifiable, Hashable, Codable {
         self.shortQuote = shortQuote
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.shareToken = shareToken
     }
 
-    // Fábrica para crear un memorial NUEVO con UUID nuevo.
-    // Úsala solo cuando estés creando memoriales nuevos.
+    /// Fábrica para crear un memorial NUEVO.
     static func createNew(name: String,
-                             petType: PetType,
-                             birthDate: Date? = nil,
-                             deathDate: Date? = nil,
-                             shortQuote: String? = nil) -> Memorial {
-       let now = Date()
-       return Memorial(
-           id: UUID(),
-           name: name,
-           petType: petType,
-           birthDate: birthDate,
-           deathDate: deathDate,
-           shortQuote: shortQuote,
-           createdAt: now,
-           updatedAt: now
-       )
+                          petType: PetType,
+                          birthDate: Date? = nil,
+                          deathDate: Date? = nil,
+                          shortQuote: String? = nil) -> Memorial {
+        let now = Date()
+        return Memorial(
+            id: UUID(),
+            name: name,
+            petType: petType,
+            birthDate: birthDate,
+            deathDate: deathDate,
+            shortQuote: shortQuote,
+            createdAt: now,
+            updatedAt: now,
+            shareToken: Self.generateShareToken()
+        )
+    }
+
+    /// Genera un token de invitación/compartir relativamente corto.
+    /// (Aquí puedes afinar el formato que más te guste).
+    static func generateShareToken() -> String {
+        // Ejemplo sencillo: 8 caracteres alfanuméricos en mayúsculas
+        let chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        return String((0..<8).compactMap { _ in chars.randomElement() })
     }
 
     /// Diccionario para enviar a Firestore.
-    /// Firestore convierte automáticamente Date → Timestamp.
     var toDictionary: [String: Any] {
         [
             "id": id.uuidString,
@@ -75,7 +82,8 @@ struct Memorial: Identifiable, Hashable, Codable {
             "deathDate": deathDate as Any,
             "shortQuote": shortQuote as Any,
             "createdAt": createdAt,
-            "updatedAt": updatedAt
+            "updatedAt": updatedAt,
+            "shareToken": shareToken
         ]
     }
 }
