@@ -13,13 +13,21 @@ struct RootTabView: View {
     
     // Accedemos al ViewModel compartido
     @EnvironmentObject var memorialListViewModel: MemorialListViewModel
-    
+    @State private var showPaywall = false
+
     var body: some View {
         TabView {
             
             // TAB 1: Lista de memoriales envuelta en NavigationStack
             NavigationStack {
                 MemorialListView()
+                    .toolbar {
+                        ToolbarItem(placement: .bottomBar) {
+                            Button("Premium") {
+                                showPaywall = true
+                            }
+                        }
+                    }
             }
             .tabItem {
                 Label("Memoriales", systemImage: "pawprint.fill")
@@ -48,6 +56,9 @@ struct RootTabView: View {
             .tabItem {
                 Label("Ajustes", systemImage: "gearshape.fill")
             }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
     }
 }
