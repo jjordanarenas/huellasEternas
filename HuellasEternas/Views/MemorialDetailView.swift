@@ -23,6 +23,15 @@ struct MemorialDetailView: View {
     @State private var showSuccessAlert = false
     @State private var showErrorAlert = false
 
+    // Suscripciones (para saber si es Premium)
+    @StateObject private var subscriptionManager = SubscriptionManager.shared
+
+    // Límite de velas gratis al día para no Premium
+    private let candleUsageManager = CandleUsageManager()
+
+    // Mostrar Paywall cuando no queden velas gratis
+    @State private var showPaywall = false
+
     // Inicializador personalizado que recibe un Memorial
     init(memorial: Memorial) {
         // Creamos el StateObject manualmente para pasar el memorial al ViewModel
@@ -81,9 +90,11 @@ struct MemorialDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)
 
-                // Botón que abre el formulario de vela
+                // Botón que abre el formulario de vela (con control de límite)
                 Button {
-                    showCandleFormSheet = true
+                    Task {
+                        await handleTapLightCandleButton()
+                    }
                 } label: {
                     Label("Encender una vela", systemImage: "candle.fill")
                         .frame(maxWidth: .infinity)
@@ -92,7 +103,20 @@ struct MemorialDetailView: View {
                 .tint(.orange)
                 .padding(.horizontal)
                 .padding(.top, 8)
-                .disabled(viewModel.isLightingCandle) // por si algún día quieres bloquear durante el proceso
+                .disabled(viewModel.isLightingCandle)
+
+                // Info sobre velas gratis restantes (solo para no Premium)
+                if !subscriptionManager.isPremium {
+                    let remaining = candleUsageManager.remainingFreeCandlesToday()
+                    Text(
+                        remaining > 0
+                        ? "Te quedan \(remaining) velas gratis hoy."
+                        : "Has usado todas tus velas gratis de hoy."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+                }
 
                 // 🔥 BLOQUE DE VELAS: contador + lista
                 VStack(alignment: .leading, spacing: 8) {
@@ -184,12 +208,14 @@ struct MemorialDetailView: View {
         // Sheet con el formulario de vela
         .sheet(isPresented: $showCandleFormSheet) {
             CandleFormView { name, message in
-                // Cuando el usuario confirma en el formulario,
-                // aquí se llama a la función del ViewModel (async).
                 Task {
+                    // Si NO es Premium, registramos que ha usado una vela gratis
+                    if !subscriptionManager.isPremium {
+                        candleUsageManager.registerCandleUsage()
+                    }
+
                     await viewModel.lightCandle(fromName: name, message: message)
 
-                    // Decidimos qué alert mostrar según el estado del ViewModel
                     if viewModel.candleSuccessMessage != nil {
                         showSuccessAlert = true
                     } else if viewModel.candleErrorMessage != nil {
@@ -222,6 +248,10 @@ struct MemorialDetailView: View {
                 Text(viewModel.candleErrorMessage ?? "Ha ocurrido un error.")
             }
         )
+        // Paywall cuando se quedas sin velas gratis
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
     }
 
     /// Formatea la fecha de la vela a algo tipo "hoy", "ayer" o fecha corta.
@@ -230,5 +260,30 @@ struct MemorialDetailView: View {
         formatter.locale = Locale(identifier: "es_ES")
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    /// Decide qué hacer cuando el usuario pulsa "Encender una vela":
+    /// - Si es Premium → abre formulario sin límite.
+    /// - Si no es Premium:
+    ///     - si le quedan velas gratis → abre formulario
+    ///     - si no → muestra Paywall
+    @MainActor
+    private func handleTapLightCandleButton() async {
+        // Si ya estamos en mitad de encender una vela, no hacemos nada
+        guard !viewModel.isLightingCandle else { return }
+
+        if subscriptionManager.isPremium {
+            // Usuario Premium → sin límite
+            showCandleFormSheet = true
+            return
+        }
+
+        // Usuario no Premium → comprobar velas gratuitas restantes
+        if candleUsageManager.canUseFreeCandle() {
+            showCandleFormSheet = true
+        } else {
+            // No le quedan velas gratis → mostrar Paywall
+            showPaywall = true
+        }
     }
 }
