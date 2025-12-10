@@ -8,8 +8,8 @@
 import SwiftUI
 
 /// Formulario para crear una nueva entrada del diario.
-/// Ahora incluye un botón "Necesito unas palabras de ánimo"
-/// que genera un texto corto usando ComfortMessageService.
+/// Incluye un botón "Necesito unas palabras de ánimo"
+/// que usa IA con límite mensual para usuarios no Premium.
 struct NewJournalEntryView: View {
 
     @Environment(\.dismiss) private var dismiss
@@ -23,10 +23,19 @@ struct NewJournalEntryView: View {
     // Servicio que usaremos para generar mensajes de ánimo
     private let comfortService = ComfortMessageService()
 
+    // Manager de suscripción (para saber si es Premium)
+    @StateObject private var subscriptionManager = SubscriptionManager.shared
+
+    // Manager del uso de IA gratuita
+    private let aiUsageManager = AIUsageManager()
+
     // Estado de generación de mensaje de ánimo
     @State private var isGeneratingComfortMessage = false
     @State private var generationErrorMessage: String? = nil
     @State private var showGenerationErrorAlert = false
+
+    // Control para mostrar el Paywall cuando se quede sin mensajes gratis
+    @State private var showPaywall = false
 
     // Closure que la vista padre pasa para manejar el guardado
     let onSave: (JournalMood, String) -> Void
@@ -62,13 +71,23 @@ struct NewJournalEntryView: View {
                         }
                     }
 
+                    // Info sobre mensajes gratis restantes (solo para no premium)
+                    if !subscriptionManager.isPremium {
+                        let remaining = aiUsageManager.remainingFreeMessages()
+                        Text(remaining > 0
+                             ? "Te quedan \(remaining) mensajes de ánimo gratis este mes."
+                             : "Has usado todos tus mensajes de ánimo gratis este mes."
+                        )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
+
                     // Botón para generar mensaje de ánimo
                     Button {
                         Task {
-                            await generateComfortMessage()
+                            await handleGenerateComfortMessageTapped()
                         }
                     } label: {
-                        // Mostramos spinner si está generando
                         if isGeneratingComfortMessage {
                             HStack {
                                 ProgressView()
@@ -106,10 +125,36 @@ struct NewJournalEntryView: View {
             } message: {
                 Text(generationErrorMessage ?? "Ha ocurrido un error inesperado.")
             }
+            // 👇 Aquí mostramos el Paywall cuando no le quedan mensajes gratis
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
+            }
         }
     }
 
-    /// Llama al servicio de mensajes de ánimo y actualiza el texto del editor.
+    /// Se llama cuando el usuario pulsa el botón de "Necesito unas palabras de ánimo".
+    @MainActor
+    private func handleGenerateComfortMessageTapped() async {
+        guard !isGeneratingComfortMessage else { return }
+
+        // Si el usuario es Premium, IA ilimitada
+        if subscriptionManager.isPremium {
+            await generateComfortMessage()
+            return
+        }
+
+        // Usuario no Premium: comprobar si le quedan mensajes gratis
+        if aiUsageManager.canUseFreeMessage() {
+            // Registramos el uso ANTES de llamar, para que si falla igual descuente
+            aiUsageManager.registerMessageUsage()
+            await generateComfortMessage()
+        } else {
+            // No le quedan mensajes gratis → mostramos Paywall
+            showPaywall = true
+        }
+    }
+
+    /// Llama al servicio de IA y actualiza el texto del editor.
     @MainActor
     private func generateComfortMessage() async {
         guard !isGeneratingComfortMessage else { return }
@@ -118,15 +163,11 @@ struct NewJournalEntryView: View {
         generationErrorMessage = nil
 
         do {
-            // Llamamos al servicio con el mood actual y el texto que ya tenga el usuario
             let message = try await comfortService.generateComfortMessage(
                 mood: selectedMood,
                 currentText: text
             )
 
-            // Integramos el mensaje en el TextEditor:
-            // - Si está vacío, lo ponemos directamente
-            // - Si ya hay algo, lo añadimos debajo con un salto de línea
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 text = message
             } else {
@@ -140,4 +181,5 @@ struct NewJournalEntryView: View {
 
         isGeneratingComfortMessage = false
     }
+
 }
