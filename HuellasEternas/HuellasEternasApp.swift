@@ -7,6 +7,8 @@
 
 import SwiftUI
 import FirebaseCore
+import FirebaseAuth
+import FirebaseAppCheck
 
 // Este es el punto de entrada de la app (equivalente a @UIApplicationMain en UIKit)
 @main
@@ -17,8 +19,24 @@ struct HuellasEternasApp: App {
     @StateObject private var memorialListViewModel = MemorialListViewModel()
 
     init() {
+        #if DEBUG
+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        #endif
         // Inicializa Firebase cuando arranca la app
         FirebaseApp.configure()
+        signInAnonymouslyIfNeeded()
+    }
+
+    private func signInAnonymouslyIfNeeded() {
+        if Auth.auth().currentUser == nil {
+            Auth.auth().signInAnonymously { result, error in
+                if let error = error {
+                    print("❌ Error en login anónimo: \(error)")
+                } else {
+                    print("✅ Usuario anónimo autenticado: \(result?.user.uid ?? "?")")
+                }
+            }
+        }
     }
 
     var body: some Scene {

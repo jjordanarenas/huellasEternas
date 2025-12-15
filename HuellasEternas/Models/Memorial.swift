@@ -19,6 +19,9 @@ struct Memorial: Identifiable, Hashable, Codable {
     var createdAt: Date
     var updatedAt: Date
 
+    /// Usuario dueño del memorial (uid de Firebase Auth)
+    var ownerUid: String
+
     /// Código que usaremos para compartir este memorial con amigos/familia.
     /// Puede ser un string corto, legible, que incluimos también en un link.
     var shareToken: String
@@ -31,6 +34,7 @@ struct Memorial: Identifiable, Hashable, Codable {
          shortQuote: String? = nil,
          createdAt: Date = Date(),
          updatedAt: Date = Date(),
+         ownerUid: String,
          shareToken: String) {
 
         self.id = id
@@ -41,6 +45,7 @@ struct Memorial: Identifiable, Hashable, Codable {
         self.shortQuote = shortQuote
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.ownerUid = ownerUid
         self.shareToken = shareToken
     }
 
@@ -49,7 +54,8 @@ struct Memorial: Identifiable, Hashable, Codable {
                           petType: PetType,
                           birthDate: Date? = nil,
                           deathDate: Date? = nil,
-                          shortQuote: String? = nil) -> Memorial {
+                          shortQuote: String? = nil,
+                          ownerUid: String) -> Memorial {
         let now = Date()
         return Memorial(
             id: UUID(),
@@ -60,6 +66,7 @@ struct Memorial: Identifiable, Hashable, Codable {
             shortQuote: shortQuote,
             createdAt: now,
             updatedAt: now,
+            ownerUid: ownerUid,
             shareToken: Self.generateShareToken()
         )
     }
@@ -83,6 +90,7 @@ struct Memorial: Identifiable, Hashable, Codable {
             "shortQuote": shortQuote as Any,
             "createdAt": createdAt,
             "updatedAt": updatedAt,
+            "ownerUid": ownerUid,
             "shareToken": shareToken
         ]
     }

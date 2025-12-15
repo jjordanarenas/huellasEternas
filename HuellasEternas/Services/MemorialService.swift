@@ -7,6 +7,7 @@
 
 import Foundation
 import FirebaseFirestore
+import FirebaseAuth
 
 /// Servicio responsable de guardar y leer memoriales en Firestore.
 final class MemorialService {
@@ -15,15 +16,35 @@ final class MemorialService {
 
     // MARK: - Guardar (crear/actualizar) memorial
 
-    /// Guarda un memorial en Firestore bajo el documento:
+    /// Guarda un memorial en Firestore bajo:
     /// memorials/{memorial.id.uuidString}
+    ///
+    /// IMPORTANTE:
+    /// - Requiere que haya usuario autenticado.
+    /// - Fuerza a que ownerUid sea siempre el uid del usuario actual (fuente de verdad).
     func saveMemorial(_ memorial: Memorial) async throws {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            throw MemorialServiceError.notAuthenticated
+        }
+
         let documentId = memorial.id.uuidString
+
+        // Partimos del diccionario del memorial...
+        var data = memorial.toDictionary
+
+        // ...pero FORZAMOS ownerUid al uid actual para evitar inconsistencias.
+        data["ownerUid"] = uid
+
+        // Opcional pero recomendable: mantener updatedAt consistente en servidor
+        data["updatedAt"] = FieldValue.serverTimestamp()
+
+        // Si te interesa, también puedes asegurar createdAt solo en creación
+        // (para MVP, merge y serverTimestamp en updatedAt es suficiente).
 
         try await db
             .collection("memorials")
             .document(documentId)
-            .setData(memorial.toDictionary, merge: true)
+            .setData(data, merge: true)
     }
 
     // MARK: - Obtener todos los memoriales
@@ -36,22 +57,26 @@ final class MemorialService {
             .order(by: "createdAt", descending: false)
             .getDocuments()
 
-        let memorials: [Memorial] = snapshot.documents.compactMap { doc in
+        // 👇 IMPORTANTE: tipamos el closure como Memorial? para que `return nil` sea válido
+        let memorials: [Memorial] = snapshot.documents.compactMap { (doc) -> Memorial? in
             let data = doc.data()
 
+            // Obligatorios
             guard
                 let name = data["name"] as? String,
                 let petTypeRaw = data["petType"] as? String,
-                let petType = PetType(rawValue: petTypeRaw)
+                let petType = PetType(rawValue: petTypeRaw),
+                let ownerUid = data["ownerUid"] as? String,
+                !ownerUid.isEmpty
             else {
                 return nil
             }
 
-            let idString = data["id"] as? String ?? doc.documentID
-            guard let uuid = UUID(uuidString: idString) else {
-                return nil
-            }
+            // ID
+            let idString = (data["id"] as? String) ?? doc.documentID
+            guard let uuid = UUID(uuidString: idString) else { return nil }
 
+            // Opcionales
             let birthDate = (data["birthDate"] as? Timestamp)?.dateValue()
             let deathDate = (data["deathDate"] as? Timestamp)?.dateValue()
             let shortQuote = data["shortQuote"] as? String
@@ -59,15 +84,12 @@ final class MemorialService {
             let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
             let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? createdAt
 
-            // 👇 Intentamos leer shareToken. Si no existe (memorial antiguo),
-            // generamos uno nuevo para ese memorial.
+            // shareToken (si falta, generamos uno localmente; idealmente lo migras y lo guardas)
             let shareToken: String
-            if let existingToken = data["shareToken"] as? String, !existingToken.isEmpty {
-                shareToken = existingToken
+            if let token = data["shareToken"] as? String, !token.isEmpty {
+                shareToken = token
             } else {
                 shareToken = Memorial.generateShareToken()
-                // Opcional: podríamos re-guardar el memorial con este nuevo token.
-                // Lo dejamos pendiente para no complicarlo ahora.
             }
 
             return Memorial(
@@ -79,6 +101,7 @@ final class MemorialService {
                 shortQuote: shortQuote,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                ownerUid: ownerUid,
                 shareToken: shareToken
             )
         }
@@ -104,7 +127,9 @@ final class MemorialService {
         guard
             let name = data["name"] as? String,
             let petTypeRaw = data["petType"] as? String,
-            let petType = PetType(rawValue: petTypeRaw)
+            let petType = PetType(rawValue: petTypeRaw),
+            let ownerUid = data["ownerUid"] as? String,
+            !ownerUid.isEmpty
         else {
             return nil
         }
@@ -132,7 +157,12 @@ final class MemorialService {
             shortQuote: shortQuote,
             createdAt: createdAt,
             updatedAt: updatedAt,
+            ownerUid: ownerUid,
             shareToken: shareToken
         )
+    }
+
+    enum MemorialServiceError: Error {
+        case notAuthenticated
     }
 }
