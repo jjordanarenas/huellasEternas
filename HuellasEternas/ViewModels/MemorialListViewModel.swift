@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FirebaseAuth
 
 final class MemorialListViewModel: ObservableObject {
 
@@ -52,16 +53,22 @@ final class MemorialListViewModel: ObservableObject {
     // MARK: - Añadir memorial (sigue funcionando igual que antes)
 
     func addMemorial(name: String, petType: PetType) {
-        let newMemorial = Memorial.createNew(name: name, petType: petType)
+        guard let uid = Auth.auth().currentUser?.uid else {
+            print("❌ No hay usuario autenticado. No se puede crear memorial.")
+            return
+        }
+
+        // Aquí ya nace con ownerUid correcto
+        let newMemorial = Memorial.createNew(name: name, petType: petType, ownerUid: uid)
 
         memorials.append(newMemorial)
 
         Task {
             do {
                 try await memorialService.saveMemorial(newMemorial)
-                print("✅ Memorial guardado en Firestore con id \(newMemorial.id.uuidString)")
+                print("✅ Memorial guardado con ownerUid=\(uid)")
             } catch {
-                print("❌ Error al guardar memorial en Firestore: \(error)")
+                print("❌ Error guardando memorial: \(error)")
             }
         }
     }

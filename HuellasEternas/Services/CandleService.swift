@@ -27,22 +27,20 @@ final class CandleService {
         fromName: String? = nil,
         message: String? = nil
     ) async throws {
-        
-        // Creamos el modelo local de vela
-        let candle = Candle(
-            memorialId: memorialId,
-            fromName: fromName,
-            message: message
-        )
-        
-        // Ruta: memorials/{memorialId}/candles/{autoId}
-        let candlesCollection = db
+        let db = Firestore.firestore()
+
+        let candleData: [String: Any] = [
+            "memorialId": memorialId,
+            "fromName": fromName ?? "",
+            "message": message ?? "",
+            "createdAt": Timestamp(date: Date()) // ✅ timestamp real (cumple reglas)
+        ]
+
+        _ = try await db
             .collection("memorials")
             .document(memorialId)
             .collection("candles")
-        
-        // Usamos async/await para no anidar closures
-        try await candlesCollection.addDocument(data: candle.toDictionary)
+            .addDocument(data: candleData)
     }
     
     // MARK: - Ejemplo de obtener el número de velas (por si lo necesitas después)
