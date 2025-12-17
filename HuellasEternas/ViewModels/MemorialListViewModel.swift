@@ -20,6 +20,7 @@ final class MemorialListViewModel: ObservableObject {
 
     // Servicio para Firestore
     private let memorialService: MemorialService
+    private let orderService = MemorialOrderService()
 
     init(memorialService: MemorialService = MemorialService()) {
         self.memorialService = memorialService
@@ -35,15 +36,31 @@ final class MemorialListViewModel: ObservableObject {
     /// Carga todos los memoriales desde Firestore y actualiza la lista.
     @MainActor
     func loadMemorials() async {
-        // Evitamos llamar dos veces a la vez
         guard !isLoading else { return }
 
         isLoading = true
         loadErrorMessage = nil
 
         do {
-            let fetched = try await memorialService.fetchAllMemorials()
-            self.memorials = fetched
+            // 1) Traemos el orden del usuario (owned + joined, mezclados)
+            let order = try await orderService.fetchOrder()
+            let orderedIds = order.map { $0.0 }
+
+            // 2) Si aún no hay orden guardado, fallback a lo antiguo (temporal)
+            if orderedIds.isEmpty {
+                let fetched = try await memorialService.fetchAllMemorials()
+                self.memorials = fetched
+                isLoading = false
+                return
+            }
+
+            // 3) Traemos solo los memoriales de ese orden
+            let fetched = try await memorialService.fetchMemorials(byIds: orderedIds)
+
+            // 4) Los ponemos EXACTAMENTE en ese orden
+            let byId = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id.uuidString, $0) })
+            self.memorials = orderedIds.compactMap { byId[$0] }
+
         } catch {
             print("❌ Error al cargar memoriales: \(error)")
             self.loadErrorMessage = "No se han podido cargar tus memoriales."
@@ -72,6 +89,19 @@ final class MemorialListViewModel: ObservableObject {
         }
 
         memorials.append(newMemorial)
+
+        Task {
+            do {
+                try await orderService.upsert(
+                    memorialId: newMemorial.id.uuidString,
+                    relationship: .owned,
+                    sortIndex: memorials.count - 1
+                )
+            } catch {
+                print("❌ Error guardando orden (owned): \(error)")
+            }
+        }
+
         AnalyticsManager.shared.log(AEvent.memorialCreated, [
             "pet_type": newMemorial.petType.rawValue
         ])
@@ -133,6 +163,18 @@ final class MemorialListViewModel: ObservableObject {
             // Lo añadimos a la lista local para que quede guardado
             memorials.append(found)
 
+            Task {
+                do {
+                    try await orderService.upsert(
+                        memorialId: found.id.uuidString,
+                        relationship: .joined,
+                        sortIndex: memorials.count - 1
+                    )
+                } catch {
+                    print("❌ Error guardando orden (joined): \(error)")
+                }
+            }
+
             AnalyticsManager.shared.log(AEvent.joinMemorial, [
                 "result": "success"
             ])
@@ -140,6 +182,29 @@ final class MemorialListViewModel: ObservableObject {
             return found
         } else {
             throw JoinMemorialError.notFound
+        }
+    }
+
+    func moveMemorials(from source: IndexSet, to destination: Int) {
+        memorials.move(fromOffsets: source, toOffset: destination)
+
+        // Relación por id (owned/joined) para guardar en Firestore
+        let uid = Auth.auth().currentUser?.uid
+        let relById: [String: MemorialOrderService.Relationship] = Dictionary(
+            uniqueKeysWithValues: memorials.map { m in
+                let rel: MemorialOrderService.Relationship = (uid != nil && m.ownerUid == uid) ? .owned : .joined
+                return (m.id.uuidString, rel)
+            }
+        )
+
+        let idsInOrder = memorials.map { $0.id.uuidString }
+
+        Task {
+            do {
+                try await orderService.saveFullOrder(memorialIdsInOrder: idsInOrder, relationshipById: relById)
+            } catch {
+                print("❌ Error guardando reorder: \(error)")
+            }
         }
     }
 

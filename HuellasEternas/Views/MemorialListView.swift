@@ -39,10 +39,13 @@ struct MemorialListView: View {
                     }
 
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showingNewMemorialSheet = true
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
+                        HStack {
+                            EditButton()
+                            Button {
+                                showingNewMemorialSheet = true
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                            }
                         }
                     }
                 }
@@ -108,6 +111,9 @@ struct MemorialListView: View {
                             //     Text(memorial.name)
                             // }
                         }
+                    }
+                    .onMove { indices, newOffset in
+                        viewModel.moveMemorials(from: indices, to: newOffset)
                     }
                 }
                 .listStyle(.insetGrouped)

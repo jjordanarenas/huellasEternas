@@ -166,3 +166,73 @@ final class MemorialService {
         case notAuthenticated
     }
 }
+
+extension MemorialService {
+
+    func fetchMemorials(byIds ids: [String]) async throws -> [Memorial] {
+        guard !ids.isEmpty else { return [] }
+
+        var results: [Memorial] = []
+        let chunks = ids.chunked(into: 10)
+
+        for chunk in chunks {
+            let snap = try await db
+                .collection("memorials")
+                .whereField("id", in: chunk) // usa tu campo "id" (uuidString)
+                .getDocuments()
+
+            let memorials: [Memorial] = snap.documents.compactMap { (doc) -> Memorial? in
+                // Reutiliza tu parsing actual (con ownerUid, shareToken, etc.)
+                // Si ya tienes un parse común, úsalo aquí.
+                let data = doc.data()
+
+                guard
+                    let name = data["name"] as? String,
+                    let petTypeRaw = data["petType"] as? String,
+                    let petType = PetType(rawValue: petTypeRaw),
+                    let ownerUid = data["ownerUid"] as? String,
+                    !ownerUid.isEmpty
+                else { return nil }
+
+                let idString = (data["id"] as? String) ?? doc.documentID
+                guard let uuid = UUID(uuidString: idString) else { return nil }
+
+                let birthDate = (data["birthDate"] as? Timestamp)?.dateValue()
+                let deathDate = (data["deathDate"] as? Timestamp)?.dateValue()
+                let shortQuote = data["shortQuote"] as? String
+
+                let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+                let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? createdAt
+
+                let shareToken = (data["shareToken"] as? String) ?? Memorial.generateShareToken()
+
+                return Memorial(
+                    id: uuid,
+                    name: name,
+                    petType: petType,
+                    birthDate: birthDate,
+                    deathDate: deathDate,
+                    shortQuote: shortQuote,
+                    createdAt: createdAt,
+                    updatedAt: updatedAt,
+                    ownerUid: ownerUid,
+                    shareToken: shareToken
+                )
+            }
+
+            results.append(contentsOf: memorials)
+        }
+
+        return results
+    }
+}
+
+// Helper para trocear arrays
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [self] }
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
+    }
+}
