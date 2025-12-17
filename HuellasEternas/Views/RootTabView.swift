@@ -24,13 +24,18 @@ struct RootTabView: View {
             // TAB 1: Lista de memoriales envuelta en NavigationStack
             NavigationStack {
                 MemorialListView()
-                   /* .toolbar {
+                /* 
+                    .toolbar {
                         ToolbarItem(placement: .bottomBar) {
                             Button("Premium") {
+                                AnalyticsManager.shared.log(AEvent.paywallOpened, [
+                                    "source": "premium_button"
+                                ])
                                 showPaywall = true
                             }
                         }
-                    }*/
+                    }
+                */
             }
             .tabItem {
                 Label("Memoriales", systemImage: "pawprint.fill")

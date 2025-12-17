@@ -265,6 +265,9 @@ struct MemorialDetailView: View {
 
             // 2) ¿Ya lo habíamos mostrado antes para este memorial?
             if !shareTipTracker.wasShown(for: viewModel.memorial.id) {
+                AnalyticsManager.shared.log(AEvent.memorialShared, [
+                    "channel": "tip_shown"
+                ])
                 showShareTip = true
                 shareTipTracker.markShown(for: viewModel.memorial.id)
             }
@@ -309,6 +312,10 @@ struct MemorialDetailView: View {
         if candleUsageManager.canUseFreeCandle() {
             showCandleFormSheet = true
         } else {
+            AnalyticsManager.shared.log(AEvent.paywallOpened, [
+                "source": "candle_limit"
+            ])
+            
             // No le quedan velas gratis → mostrar Paywall
             showPaywall = true
         }

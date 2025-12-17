@@ -98,6 +98,7 @@ final class SubscriptionManager: ObservableObject {
             }
             
             self.isPremium = premium
+            AnalyticsManager.shared.setUserProperty(premium ? "1" : "0", for: "is_premium")
         } catch {
             print("❌ Error actualizando estado de suscripción:", error)
             // Mantén isPremium como está si falla
@@ -109,6 +110,10 @@ final class SubscriptionManager: ObservableObject {
     /// Inicia el flujo de compra para un producto de suscripción.
     func purchase(_ option: SubscriptionOption) async -> Bool {
         do {
+            AnalyticsManager.shared.log(AEvent.purchaseStarted, [
+                "product_id": option.product.id
+            ])
+
             let result = try await option.product.purchase()
             
             switch result {
@@ -117,6 +122,11 @@ final class SubscriptionManager: ObservableObject {
                 case .verified(let transaction):
                     // Finalizamos la transacción
                     await transaction.finish()
+
+                    AnalyticsManager.shared.log(AEvent.purchaseSuccess, [
+                        "product_id": transaction.productID
+                    ])
+
                     // Actualizamos estado
                     await updateSubscriptionStatus()
                     return true
@@ -151,6 +161,8 @@ final class SubscriptionManager: ObservableObject {
     
     /// Restaura compras de suscripción (útil en ajustes).
     func restorePurchases() async {
+        AnalyticsManager.shared.log(AEvent.restorePurchases)
+
         isLoading = true
         defer { isLoading = false }
         

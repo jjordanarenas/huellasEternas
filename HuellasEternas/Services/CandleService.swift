@@ -41,6 +41,10 @@ final class CandleService {
             .document(memorialId)
             .collection("candles")
             .addDocument(data: candleData)
+
+        AnalyticsManager.shared.log(AEvent.candleLit, [
+            "memorial_id": memorialId
+        ])
     }
     
     // MARK: - Ejemplo de obtener el número de velas (por si lo necesitas después)

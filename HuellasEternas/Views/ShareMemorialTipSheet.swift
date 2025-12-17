@@ -135,6 +135,10 @@ struct ShareMemorialTipSheet: View {
         }
 
         if UIApplication.shared.canOpenURL(url) {
+            AnalyticsManager.shared.log(AEvent.memorialShared, [
+                "channel": "whatsapp"
+            ])
+            
             UIApplication.shared.open(url)
         } else {
             showWhatsAppFallbackAlert = true

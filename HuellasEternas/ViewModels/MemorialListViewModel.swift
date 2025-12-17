@@ -72,7 +72,9 @@ final class MemorialListViewModel: ObservableObject {
         }
 
         memorials.append(newMemorial)
-
+        AnalyticsManager.shared.log(AEvent.memorialCreated, [
+            "pet_type": newMemorial.petType.rawValue
+        ])
         // 👇 Esto es la “orden” de navegación programática
         pendingNavigateToMemorial = newMemorial
         pendingShareTipMemorialId = newMemorial.id
@@ -130,6 +132,11 @@ final class MemorialListViewModel: ObservableObject {
         if let found = try await memorialService.fetchMemorial(byShareToken: token) {
             // Lo añadimos a la lista local para que quede guardado
             memorials.append(found)
+
+            AnalyticsManager.shared.log(AEvent.joinMemorial, [
+                "result": "success"
+            ])
+
             return found
         } else {
             throw JoinMemorialError.notFound

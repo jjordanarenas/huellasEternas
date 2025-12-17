@@ -95,6 +95,9 @@ struct JoinMemorialView: View {
             let memorial = try await listViewModel.joinMemorial(using: inputText)
             foundMemorial = memorial
         } catch {
+            AnalyticsManager.shared.log(AEvent.joinMemorial, [
+                "result": "not_found"
+            ])
             if let joinError = error as? MemorialListViewModel.JoinMemorialError {
                 errorMessage = joinError.errorDescription
             } else {
