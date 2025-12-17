@@ -18,3 +18,15 @@ enum PetType: String, CaseIterable, Identifiable, Codable {
     // Para usar en ForEach en SwiftUI
     var id: String { rawValue }
 }
+
+extension PetType {
+    var systemImage: String {
+        switch self {
+        case .dog: return "pawprint.fill"
+        case .cat: return "pawprint"
+        case .bird: return "bird.fill"
+        case .rabbit: return "hare.fill"
+        case .other: return "heart.fill"
+        }
+    }
+}

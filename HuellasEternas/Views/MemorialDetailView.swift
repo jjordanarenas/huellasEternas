@@ -32,6 +32,11 @@ struct MemorialDetailView: View {
     // Mostrar Paywall cuando no queden velas gratis
     @State private var showPaywall = false
 
+    @EnvironmentObject var memorialListVM: MemorialListViewModel
+    @State private var showShareTip = false
+    private let shareTipTracker = ShareTipTracker()
+
+
     // Inicializador personalizado que recibe un Memorial
     init(memorial: Memorial) {
         // Creamos el StateObject manualmente para pasar el memorial al ViewModel
@@ -251,6 +256,28 @@ struct MemorialDetailView: View {
         // Paywall cuando se quedas sin velas gratis
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+        }
+        .onAppear {
+            // 1) ¿Este memorial es el que viene de “recién creado”?
+            let shouldPrompt = (memorialListVM.pendingShareTipMemorialId == viewModel.memorial.id)
+
+            guard shouldPrompt else { return }
+
+            // 2) ¿Ya lo habíamos mostrado antes para este memorial?
+            if !shareTipTracker.wasShown(for: viewModel.memorial.id) {
+                showShareTip = true
+                shareTipTracker.markShown(for: viewModel.memorial.id)
+            }
+
+            // 3) Limpieza: que no se vuelva a disparar si vuelves atrás/adelante
+            memorialListVM.pendingShareTipMemorialId = nil
+        }
+        .sheet(isPresented: $showShareTip) {
+            ShareMemorialTipSheet(
+                memorialName: viewModel.memorial.name,
+                shareURL: shareURL,
+                shareToken: viewModel.memorial.shareToken
+            )
         }
     }
 

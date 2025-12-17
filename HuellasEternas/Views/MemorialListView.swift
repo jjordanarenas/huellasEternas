@@ -10,16 +10,68 @@ import SwiftUI
 struct MemorialListView: View {
 
     @EnvironmentObject var viewModel: MemorialListViewModel
+
+    // Para abrir la sheet de “Nuevo memorial”
     @State private var showingNewMemorialSheet = false
 
+    // NavigationPath para navegación programática (onboarding -> detalle)
+    @State private var path = NavigationPath()
+
     var body: some View {
+        NavigationStack(path: $path) {
+            content
+                .navigationTitle("Tus memoriales")
+
+                // ✅ Destino para NavigationLink(value:)
+                .navigationDestination(for: Memorial.self) { memorial in
+                    MemorialDetailView(memorial: memorial)
+                }
+
+                // ✅ Toolbar recuperada (unirse + crear)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        NavigationLink {
+                            JoinMemorialView()
+                                .environmentObject(viewModel)
+                        } label: {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                        }
+                    }
+
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showingNewMemorialSheet = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                        }
+                    }
+                }
+
+                // ✅ Sheet recuperada
+                .sheet(isPresented: $showingNewMemorialSheet) {
+                    NewMemorialView()
+                        .environmentObject(viewModel)
+                }
+
+                // ✅ Navegación automática al memorial recién creado
+                .onChange(of: viewModel.pendingNavigateToMemorial) { newValue in
+                    guard let memorial = newValue else { return }
+                    path.append(memorial)
+                    viewModel.pendingNavigateToMemorial = nil
+                }
+        }
+    }
+
+    // MARK: - Content (estados)
+
+    @ViewBuilder
+    private var content: some View {
         VStack {
             if viewModel.isLoading {
-                // Estado de carga
                 ProgressView("Cargando tus memoriales…")
                     .padding()
+
             } else if let errorMessage = viewModel.loadErrorMessage {
-                // Estado de error
                 VStack(spacing: 12) {
                     Text("Ha ocurrido un problema")
                         .font(.headline)
@@ -34,54 +86,39 @@ struct MemorialListView: View {
                     }
                 }
                 .padding()
+
             } else if viewModel.memorials.isEmpty {
-                // Sin memoriales todavía
                 ContentUnavailableView(
                     "Aún no hay memoriales",
                     systemImage: "pawprint",
                     description: Text("Crea el primer memorial para recordar a tu compañero.")
                 )
+
             } else {
-                // Lista de memoriales
-                List(viewModel.memorials) { memorial in
-                    NavigationLink {
-                        MemorialDetailView(memorial: memorial)
-                    } label: {
-                        MemorialRowView(memorial: memorial)
+                List {
+                    ForEach(viewModel.memorials) { memorial in
+                        // ✅ IMPORTANTE: usar NavigationLink(value:) para que funcione con navigationDestination(for:)
+                        NavigationLink(value: memorial) {
+                            // Si ya tenías MemorialRowView, úsalo:
+                            MemorialRowView(memorial: memorial)
+
+                            // Si no, usa esto:
+                            // HStack(spacing: 12) {
+                            //     Image(systemName: memorial.petType.systemImage)
+                            //     Text(memorial.name)
+                            // }
+                        }
                     }
                 }
                 .listStyle(.insetGrouped)
-                // Permite "arrastrar para refrescar" la lista
                 .refreshable {
                     await viewModel.loadMemorials()
                 }
             }
         }
-        .navigationTitle("Tus memoriales")
-        .toolbar {
-            // Botón "Unirme" a la izquierda (por ejemplo)
-            ToolbarItem(placement: .topBarLeading) {
-                NavigationLink {
-                    JoinMemorialView()
-                        .environmentObject(viewModel)
-                } label: {
-                    Image(systemName: "person.crop.circle.badge.plus")
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingNewMemorialSheet = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                }
-            }
-        }
-        .sheet(isPresented: $showingNewMemorialSheet) {
-            NewMemorialView()
-                .environmentObject(viewModel)
-        }
     }
 }
+
 
 // Vista de una fila individual en la lista de memoriales
 struct MemorialRowView: View {

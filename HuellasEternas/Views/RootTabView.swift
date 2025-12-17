@@ -15,19 +15,22 @@ struct RootTabView: View {
     @EnvironmentObject var memorialListViewModel: MemorialListViewModel
     @State private var showPaywall = false
 
+    @State private var showOnboarding = false
+    private let onboardingState = OnboardingState()
+
     var body: some View {
         TabView {
             
             // TAB 1: Lista de memoriales envuelta en NavigationStack
             NavigationStack {
                 MemorialListView()
-                    .toolbar {
+                   /* .toolbar {
                         ToolbarItem(placement: .bottomBar) {
                             Button("Premium") {
                                 showPaywall = true
                             }
                         }
-                    }
+                    }*/
             }
             .tabItem {
                 Label("Memoriales", systemImage: "pawprint.fill")
@@ -59,6 +62,13 @@ struct RootTabView: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+        }
+        .onAppear {
+            // Si no lo ha completado, lo mostramos
+            showOnboarding = !onboardingState.isCompleted
+        }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingFlowView()
         }
     }
 }

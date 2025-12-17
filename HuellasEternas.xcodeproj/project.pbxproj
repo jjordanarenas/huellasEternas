@@ -56,9 +56,22 @@
 		6F02D0EF2ECCCB5E00A5FE92 /* HuellasEternasUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HuellasEternasUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		6FEBBF6E2EF2965D008A2DE4 /* Exceptions for "HuellasEternas" folder in "HuellasEternas" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6F02D0D72ECCCB5900A5FE92 /* HuellasEternas */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6F02D0DA2ECCCB5900A5FE92 /* HuellasEternas */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6FEBBF6E2EF2965D008A2DE4 /* Exceptions for "HuellasEternas" folder in "HuellasEternas" target */,
+			);
 			path = HuellasEternas;
 			sourceTree = "<group>";
 		};
@@ -478,6 +491,7 @@
 				DEVELOPMENT_TEAM = WCKPXB57CT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HuellasEternas/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -506,6 +520,7 @@
 				DEVELOPMENT_TEAM = WCKPXB57CT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HuellasEternas/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
