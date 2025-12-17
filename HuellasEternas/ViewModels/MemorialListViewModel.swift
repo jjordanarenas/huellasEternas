@@ -17,6 +17,7 @@ final class MemorialListViewModel: ObservableObject {
     @Published var loadErrorMessage: String? = nil
     @Published var pendingNavigateToMemorial: Memorial? = nil
     @Published var pendingShareTipMemorialId: UUID? = nil
+    @Published var archivedMemorials: [Memorial] = []
 
     // Servicio para Firestore
     private let memorialService: MemorialService
@@ -42,24 +43,28 @@ final class MemorialListViewModel: ObservableObject {
         loadErrorMessage = nil
 
         do {
-            // 1) Traemos el orden del usuario (owned + joined, mezclados)
-            let order = try await orderService.fetchOrder()
-            let orderedIds = order.map { $0.0 }
+            let orderItems = try await orderService.fetchOrder()
 
-            // 2) Si aún no hay orden guardado, fallback a lo antiguo (temporal)
-            if orderedIds.isEmpty {
+            // Si aún no hay orden guardado, fallback temporal:
+            if orderItems.isEmpty {
                 let fetched = try await memorialService.fetchAllMemorials()
                 self.memorials = fetched
+                self.archivedMemorials = []
                 isLoading = false
                 return
             }
 
-            // 3) Traemos solo los memoriales de ese orden
-            let fetched = try await memorialService.fetchMemorials(byIds: orderedIds)
+            let orderedIds = orderItems.map { $0.memorialId }
 
-            // 4) Los ponemos EXACTAMENTE en ese orden
+            let fetched = try await memorialService.fetchMemorials(byIds: orderedIds)
             let byId = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id.uuidString, $0) })
-            self.memorials = orderedIds.compactMap { byId[$0] }
+
+            // Construimos arrays en el mismo orden de sortIndex
+            let activeIds = orderItems.filter { !$0.isArchived }.map { $0.memorialId }
+            let archivedIds = orderItems.filter { $0.isArchived }.map { $0.memorialId }
+
+            self.memorials = activeIds.compactMap { byId[$0] }
+            self.archivedMemorials = archivedIds.compactMap { byId[$0] }
 
         } catch {
             print("❌ Error al cargar memoriales: \(error)")
@@ -190,9 +195,9 @@ final class MemorialListViewModel: ObservableObject {
 
         // Relación por id (owned/joined) para guardar en Firestore
         let uid = Auth.auth().currentUser?.uid
-        let relById: [String: MemorialOrderService.Relationship] = Dictionary(
+        let relById: [String: Relationship] = Dictionary(
             uniqueKeysWithValues: memorials.map { m in
-                let rel: MemorialOrderService.Relationship = (uid != nil && m.ownerUid == uid) ? .owned : .joined
+                let rel: Relationship = (uid != nil && m.ownerUid == uid) ? .owned : .joined
                 return (m.id.uuidString, rel)
             }
         )
@@ -205,6 +210,26 @@ final class MemorialListViewModel: ObservableObject {
             } catch {
                 print("❌ Error guardando reorder: \(error)")
             }
+        }
+    }
+
+    @MainActor
+    func archive(_ memorial: Memorial) async {
+        do {
+            try await orderService.setArchived(memorialId: memorial.id.uuidString, isArchived: true)
+            await loadMemorials()
+        } catch {
+            print("❌ Error archivando memorial: \(error)")
+        }
+    }
+
+    @MainActor
+    func restore(_ memorial: Memorial) async {
+        do {
+            try await orderService.setArchived(memorialId: memorial.id.uuidString, isArchived: false)
+            await loadMemorials()
+        } catch {
+            print("❌ Error restaurando memorial: \(error)")
         }
     }
 

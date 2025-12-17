@@ -10,17 +10,23 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
+struct MemorialOrderItem {
+    let memorialId: String
+    let relationship: Relationship
+    let isArchived: Bool
+}
+
+enum Relationship: String {
+    case owned
+    case joined
+}
+
 final class MemorialOrderService {
 
     private let db = Firestore.firestore()
 
-    enum Relationship: String {
-        case owned
-        case joined
-    }
-
     /// Devuelve el orden del usuario: [(memorialId, relationship)]
-    func fetchOrder() async throws -> [(String, Relationship)] {
+    func fetchOrder() async throws -> [MemorialOrderItem] {
         guard let uid = Auth.auth().currentUser?.uid else { return [] }
 
         let snap = try await db
@@ -32,9 +38,13 @@ final class MemorialOrderService {
 
         return snap.documents.compactMap { doc in
             let data = doc.data()
-            guard let relRaw = data["relationship"] as? String,
-                  let rel = Relationship(rawValue: relRaw) else { return nil }
-            return (doc.documentID, rel) // docID = memorialId
+            guard
+                let relRaw = data["relationship"] as? String,
+                let rel = Relationship(rawValue: relRaw)
+            else { return nil }
+
+            let archived = data["isArchived"] as? Bool ?? false
+            return MemorialOrderItem(memorialId: doc.documentID, relationship: rel, isArchived: archived)
         }
     }
 
@@ -50,6 +60,7 @@ final class MemorialOrderService {
             .setData([
                 "relationship": relationship.rawValue,
                 "sortIndex": sortIndex,
+                "isArchived": false,
                 "updatedAt": FieldValue.serverTimestamp()
             ], merge: true)
     }
@@ -72,5 +83,29 @@ final class MemorialOrderService {
         }
 
         try await batch.commit()
+    }
+
+    func setArchived(memorialId: String, isArchived: Bool) async throws {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        let ref = db
+            .collection("users")
+            .document(uid)
+            .collection("memorialOrder")
+            .document(memorialId)
+
+        var data: [String: Any] = [
+            "isArchived": isArchived,
+            "updatedAt": FieldValue.serverTimestamp()
+        ]
+
+        // Solo guardamos archivedAt al archivar
+        if isArchived {
+            data["archivedAt"] = FieldValue.serverTimestamp()
+        } else {
+            data["archivedAt"] = FieldValue.delete()
+        }
+
+        try await ref.setData(data, merge: true)
     }
 }
