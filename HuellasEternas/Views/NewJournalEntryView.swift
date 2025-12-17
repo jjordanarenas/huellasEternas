@@ -149,6 +149,10 @@ struct NewJournalEntryView: View {
             aiUsageManager.registerMessageUsage()
             await generateComfortMessage()
         } else {
+            AnalyticsManager.shared.log(AEvent.paywallOpened, [
+                "source": "ai_limit"
+            ])            
+
             // No le quedan mensajes gratis → mostramos Paywall
             showPaywall = true
         }
@@ -167,6 +171,11 @@ struct NewJournalEntryView: View {
                 mood: selectedMood,
                 currentText: text
             )
+
+            AnalyticsManager.shared.log(AEvent.aiGenerated, [
+                "mood": selectedMood.rawValue,
+                "is_premium": SubscriptionManager.shared.isPremium ? "1" : "0"
+            ])
 
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 text = message
