@@ -15,6 +15,8 @@ final class MemorialListViewModel: ObservableObject {
     // Estado de carga y error (para la UI)
     @Published var isLoading: Bool = false
     @Published var loadErrorMessage: String? = nil
+    @Published var pendingNavigateToMemorial: Memorial? = nil
+    @Published var pendingShareTipMemorialId: UUID? = nil
 
     // Servicio para Firestore
     private let memorialService: MemorialService
@@ -52,25 +54,39 @@ final class MemorialListViewModel: ObservableObject {
 
     // MARK: - Añadir memorial (sigue funcionando igual que antes)
 
-    func addMemorial(name: String, petType: PetType) {
+    /// Crea memorial, lo añade a la lista y lo guarda en Firestore.
+    /// Devuelve el memorial creado para usarlo en onboarding / navegación.
+    @discardableResult
+    func addMemorial(name: String, petType: PetType, shortQuote: String? = nil) -> Memorial? {
         guard let uid = Auth.auth().currentUser?.uid else {
             print("❌ No hay usuario autenticado. No se puede crear memorial.")
-            return
+            return nil
         }
 
-        // Aquí ya nace con ownerUid correcto
-        let newMemorial = Memorial.createNew(name: name, petType: petType, ownerUid: uid)
+        // Creamos memorial (asegúrate de que tu createNew admite shortQuote si lo usas)
+        var newMemorial = Memorial.createNew(name: name, petType: petType, ownerUid: uid)
+
+        // Si quieres guardar la frase corta del onboarding:
+        if let shortQuote, !shortQuote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            newMemorial.shortQuote = shortQuote
+        }
 
         memorials.append(newMemorial)
+
+        // 👇 Esto es la “orden” de navegación programática
+        pendingNavigateToMemorial = newMemorial
+        pendingShareTipMemorialId = newMemorial.id
 
         Task {
             do {
                 try await memorialService.saveMemorial(newMemorial)
-                print("✅ Memorial guardado con ownerUid=\(uid)")
+                print("✅ Memorial guardado en Firestore con id \(newMemorial.id.uuidString)")
             } catch {
-                print("❌ Error guardando memorial: \(error)")
+                print("❌ Error al guardar memorial en Firestore: \(error)")
             }
         }
+
+        return newMemorial
     }
 
     /// Extrae el shareToken a partir de un texto que puede ser:
