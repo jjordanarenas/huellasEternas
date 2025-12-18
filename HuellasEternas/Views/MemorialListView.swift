@@ -116,7 +116,7 @@ struct MemorialListView: View {
                             //     Text(memorial.name)
                             // }
                         }
-                        .swipeActions(edge: .trailing) {
+                        .swipeActions {
                             Button(role: .destructive) {
                                 Task { await viewModel.archive(memorial) }
                             } label: {

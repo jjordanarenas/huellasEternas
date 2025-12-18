@@ -22,6 +22,8 @@ final class MemorialListViewModel: ObservableObject {
     // Servicio para Firestore
     private let memorialService: MemorialService
     private let orderService = MemorialOrderService()
+    private var orderItems: [MemorialOrderItem] = []
+    private var relationshipById: [String: Relationship] = [:]
 
     init(memorialService: MemorialService = MemorialService()) {
         self.memorialService = memorialService
@@ -215,21 +217,61 @@ final class MemorialListViewModel: ObservableObject {
 
     @MainActor
     func archive(_ memorial: Memorial) async {
+        let id = memorial.id.uuidString
+
+        // 1) UI optimista: mover de activos -> archivados (sin recargar)
+        if let idx = memorials.firstIndex(where: { $0.id == memorial.id }) {
+            let moved = memorials.remove(at: idx)
+            archivedMemorials.append(moved)
+        }
+
+        // 2) Actualiza el estado en memoria del orden global
+        if let oi = orderItems.firstIndex(where: { $0.memorialId == id }) {
+            let old = orderItems[oi]
+            orderItems[oi] = MemorialOrderItem(
+                memorialId: old.memorialId,
+                relationship: old.relationship,
+                isArchived: true
+            )
+        }
+
+        // 3) Persistir en Firestore
         do {
-            try await orderService.setArchived(memorialId: memorial.id.uuidString, isArchived: true)
-            await loadMemorials()
+            try await orderService.setArchived(memorialId: id, isArchived: true)
+            // ✅ NO hacemos loadMemorials aquí -> evita el crash durante el swipe
         } catch {
             print("❌ Error archivando memorial: \(error)")
+            // En caso de error, recargamos para “curarnos” y volver a estado consistente
+            await loadMemorials()
         }
     }
 
     @MainActor
     func restore(_ memorial: Memorial) async {
+        let id = memorial.id.uuidString
+
+        // 1) UI optimista: mover de archivados -> activos
+        if let idx = archivedMemorials.firstIndex(where: { $0.id == memorial.id }) {
+            let moved = archivedMemorials.remove(at: idx)
+            memorials.append(moved)
+        }
+
+        // 2) Orden global en memoria
+        if let oi = orderItems.firstIndex(where: { $0.memorialId == id }) {
+            let old = orderItems[oi]
+            orderItems[oi] = MemorialOrderItem(
+                memorialId: old.memorialId,
+                relationship: old.relationship,
+                isArchived: false
+            )
+        }
+
+        // 3) Persistir
         do {
-            try await orderService.setArchived(memorialId: memorial.id.uuidString, isArchived: false)
-            await loadMemorials()
+            try await orderService.setArchived(memorialId: id, isArchived: false)
         } catch {
             print("❌ Error restaurando memorial: \(error)")
+            await loadMemorials()
         }
     }
 
