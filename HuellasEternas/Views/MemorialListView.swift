@@ -41,6 +41,11 @@ struct MemorialListView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         HStack {
                             EditButton()
+                            NavigationLink {
+                                ArchivedMemorialsView().environmentObject(viewModel)
+                            } label: {
+                                Image(systemName: "archivebox")
+                            }
                             Button {
                                 showingNewMemorialSheet = true
                             } label: {
@@ -110,6 +115,13 @@ struct MemorialListView: View {
                             //     Image(systemName: memorial.petType.systemImage)
                             //     Text(memorial.name)
                             // }
+                        }
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                Task { await viewModel.archive(memorial) }
+                            } label: {
+                                Label("Archivar", systemImage: "archivebox")
+                            }
                         }
                     }
                     .onMove { indices, newOffset in
