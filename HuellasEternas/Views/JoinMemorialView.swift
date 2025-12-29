@@ -12,9 +12,10 @@ struct JoinMemorialView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var input: String
-    @State private var isJoining = false
+    @State private var isJoining: Bool = false
     @State private var errorMessage: String? = nil
 
+    /// Permite abrir esta pantalla con un texto ya pegado (opcional).
     init(prefilledInput: String = "") {
         _input = State(initialValue: prefilledInput)
     }
@@ -22,9 +23,14 @@ struct JoinMemorialView: View {
     var body: some View {
         Form {
             Section("Código o enlace") {
-                TextField("Ej: AB12CD34", text: $input)
+                TextField("Pega aquí el código o el enlace", text: $input, axis: .vertical)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
+                    .lineLimit(3, reservesSpace: true)
+
+                Text("Ejemplo: AB12CD34")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
 
             if let errorMessage {
@@ -47,31 +53,37 @@ struct JoinMemorialView: View {
                         Text("Unirme")
                     }
                 }
-                .disabled(isJoining)
-            }
-
-            Section {
-                Text("Pide a la otra persona que te envíe el código del memorial. Tú solo tienes que pegarlo aquí.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
+                .disabled(isJoining || input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .navigationTitle("Unirme a un memorial")
+        .navigationTitle("Unirme")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Cerrar") { dismiss() }
+            }
+        }
     }
 
     @MainActor
     private func join() async {
         errorMessage = nil
         isJoining = true
-        defer { isJoining = false }
 
         do {
-            _ = try await viewModel.joinMemorial(using: input)
-            // Si quieres, aquí podríamos disparar navegación automática al memorial unido:
-            // viewModel.pendingNavigateToMemorial = memorial
+            let memorial = try await viewModel.joinMemorial(using: input)
+
+            // ✅ Navegación automática al memorial unido
+            viewModel.pendingNavigateToMemorial = memorial
+
+            // Cerramos la pantalla de unirse (volverás a la lista,
+            // y la lista empuja al detalle con tu NavigationPath)
             dismiss()
+
         } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? "No se ha podido unir al memorial."
+            errorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "No se ha podido unir al memorial."
         }
+
+        isJoining = false
     }
 }

@@ -202,11 +202,11 @@ struct MemorialDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(
-                    item: shareURL,
-                    subject: Text("Memorial para \(viewModel.memorial.name)"),
-                    message: Text("He creado este memorial para \(viewModel.memorial.name). Puedes verlo y encender una vela en su honor: \(shareURL.absoluteString)")
+                    item: shareText,
+                    subject: Text("Memorial para \(memorialName)")
                 ) {
-                    Image(systemName: "square.and.arrow.up")
+                    Label("Compartir (más opciones)", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
                 }
             }
         }

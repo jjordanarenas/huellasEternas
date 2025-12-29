@@ -18,12 +18,9 @@ struct ShareMemorialTipSheet: View {
     @State private var showWhatsAppFallbackAlert = false
 
     private var shareText: String {
-        """
-        He creado este memorial para \(memorialName).
-        Para verlo y encender una vela en su honor, abre la app “HuellasEternas” y pega este código en “Unirme a un memorial”:
-
-        \(shareToken)
-        """
+        "He creado un memorial para \(memorialName) en HuellasEternas.\n\n" +
+        "Para unirte, abre la app y ve a “Unirme a un memorial”, y pega este código:\n" +
+        "\(shareToken)"
     }
 
     var body: some View {
