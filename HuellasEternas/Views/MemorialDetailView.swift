@@ -278,7 +278,6 @@ struct MemorialDetailView: View {
         .sheet(isPresented: $showShareTip) {
             ShareMemorialTipSheet(
                 memorialName: viewModel.memorial.name,
-                shareURL: shareURL,
                 shareToken: viewModel.memorial.shareToken
             )
         }

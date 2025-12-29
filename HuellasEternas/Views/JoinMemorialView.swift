@@ -5,106 +5,73 @@
 //  Created by Jorge Jordán on 2/12/25.
 //
 
-
 import SwiftUI
 
-/// Pantalla para unirse a un memorial usando un código o un enlace compartido.
 struct JoinMemorialView: View {
-    
-    @EnvironmentObject var listViewModel: MemorialListViewModel
-    
-    // Texto que pega el usuario (código o URL)
-    @State private var inputText: String = ""
-    
-    // Estado de búsqueda
-    @State private var isSearching: Bool = false
+    @EnvironmentObject var viewModel: MemorialListViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var input: String
+    @State private var isJoining = false
     @State private var errorMessage: String? = nil
-    
-    // Memorial encontrado (si lo hay)
-    @State private var foundMemorial: Memorial? = nil
-    
+
+    init(prefilledInput: String = "") {
+        _input = State(initialValue: prefilledInput)
+    }
+
     var body: some View {
         Form {
-            Section("Pega el código o enlace") {
-                TextField("Ej: AB12CD34 o https://huellas.app/m/AB12CD34", text: $inputText)
+            Section("Código o enlace") {
+                TextField("Ej: AB12CD34", text: $input)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
             }
-            
-            Section {
-                Button {
-                    Task { await searchMemorial() }
-                } label: {
-                    if isSearching {
-                        HStack {
-                            ProgressView()
-                            Text("Buscando memorial…")
-                        }
-                    } else {
-                        Label("Buscar memorial", systemImage: "magnifyingglass")
-                    }
-                }
-                .disabled(isSearching || inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            
+
             if let errorMessage {
                 Section {
                     Text(errorMessage)
                         .foregroundColor(.red)
-                        .font(.subheadline)
                 }
             }
-            
-            if let memorial = foundMemorial {
-                Section("Memorial encontrado") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(memorial.name)
-                            .font(.headline)
-                        Text(memorial.petType.rawValue)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        if let quote = memorial.shortQuote, !quote.isEmpty {
-                            Text("“\(quote)”")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
+
+            Section {
+                Button {
+                    Task { await join() }
+                } label: {
+                    if isJoining {
+                        HStack {
+                            ProgressView()
+                            Text("Uniéndome…")
                         }
-                        
-                        NavigationLink {
-                            MemorialDetailView(memorial: memorial)
-                        } label: {
-                            Label("Ir al memorial", systemImage: "pawprint.fill")
-                        }
-                        .padding(.top, 8)
+                    } else {
+                        Text("Unirme")
                     }
-                    .padding(.vertical, 4)
                 }
+                .disabled(isJoining)
+            }
+
+            Section {
+                Text("Pide a la otra persona que te envíe el código del memorial. Tú solo tienes que pegarlo aquí.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
         }
         .navigationTitle("Unirme a un memorial")
     }
-    
+
     @MainActor
-    private func searchMemorial() async {
-        guard !isSearching else { return }
-        isSearching = true
+    private func join() async {
         errorMessage = nil
-        foundMemorial = nil
-        
+        isJoining = true
+        defer { isJoining = false }
+
         do {
-            let memorial = try await listViewModel.joinMemorial(using: inputText)
-            foundMemorial = memorial
+            _ = try await viewModel.joinMemorial(using: input)
+            // Si quieres, aquí podríamos disparar navegación automática al memorial unido:
+            // viewModel.pendingNavigateToMemorial = memorial
+            dismiss()
         } catch {
-            AnalyticsManager.shared.log(AEvent.joinMemorial, [
-                "result": "not_found"
-            ])
-            if let joinError = error as? MemorialListViewModel.JoinMemorialError {
-                errorMessage = joinError.errorDescription
-            } else {
-                errorMessage = "Ha ocurrido un error al buscar el memorial."
-            }
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? "No se ha podido unir al memorial."
         }
-        
-        isSearching = false
     }
 }

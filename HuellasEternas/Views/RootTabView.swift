@@ -16,6 +16,9 @@ struct RootTabView: View {
     @State private var showPaywall = false
 
     @State private var showOnboarding = false
+    @State private var pendingJoinToken: String? = nil
+    @State private var showJoinSheet = false
+
     private let onboardingState = OnboardingState()
 
     var body: some View {
@@ -75,5 +78,28 @@ struct RootTabView: View {
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingFlowView()
         }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            guard let url = activity.webpageURL else { return }
+            handleUniversalLink(url)
+        }
+        .sheet(isPresented: $showJoinSheet) {
+            // Ideal: tu JoinMemorialView acepte un token inicial
+            JoinMemorialView(prefilledInput: pendingJoinToken ?? "")
+                .environmentObject(memorialListViewModel)
+        }
+    }
+
+    private func handleUniversalLink(_ url: URL) {
+        // Ejemplo: https://huellaseternas.app/m/AB12CD34
+        let path = url.pathComponents   // ["/", "m", "AB12CD34"]
+        guard path.count >= 3 else { return }
+
+        let section = path[1]
+        let token = path[2]
+
+        guard section == "m", !token.isEmpty else { return }
+
+        pendingJoinToken = token
+        showJoinSheet = true
     }
 }
