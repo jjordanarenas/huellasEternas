@@ -5,106 +5,195 @@
 //  Created by Jorge Jordán on 2/12/25.
 //
 
-
 import SwiftUI
+import UIKit
 
-/// Pantalla para unirse a un memorial usando un código o un enlace compartido.
 struct JoinMemorialView: View {
-    
-    @EnvironmentObject var listViewModel: MemorialListViewModel
-    
-    // Texto que pega el usuario (código o URL)
-    @State private var inputText: String = ""
-    
-    // Estado de búsqueda
-    @State private var isSearching: Bool = false
+
+    @EnvironmentObject var viewModel: MemorialListViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var input: String
+    @State private var isJoining: Bool = false
     @State private var errorMessage: String? = nil
-    
-    // Memorial encontrado (si lo hay)
-    @State private var foundMemorial: Memorial? = nil
-    
+
+    // Para evitar que el auto-join se dispare más de una vez
+    @State private var didAutoJoin: Bool = false
+    @State private var toast: Toast? = nil
+
+    // Si quieres auto-join cuando llegue prefilled (por ejemplo desde un universal link futuro)
+    private let shouldAutoJoinOnAppear: Bool
+
+    init(prefilledInput: String = "", autoJoinOnAppear: Bool = true) {
+        _input = State(initialValue: prefilledInput)
+        self.shouldAutoJoinOnAppear = autoJoinOnAppear
+    }
+
+    private var trimmedInput: String {
+        input.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canJoin: Bool {
+        !isJoining && !trimmedInput.isEmpty
+    }
+
+    private var clipboardText: String {
+        UIPasteboard.general.string ?? ""
+    }
+
+    private var hasClipboardText: Bool {
+        !clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         Form {
-            Section("Pega el código o enlace") {
-                TextField("Ej: AB12CD34 o https://huellas.app/m/AB12CD34", text: $inputText)
+            Section("Código o enlace") {
+                TextField("Pega el código o el enlace", text: $input)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
-            }
-            
-            Section {
-                Button {
-                    Task { await searchMemorial() }
-                } label: {
-                    if isSearching {
-                        HStack {
-                            ProgressView()
-                            Text("Buscando memorial…")
-                        }
-                    } else {
-                        Label("Buscar memorial", systemImage: "magnifyingglass")
+                    .submitLabel(.go)
+                    .onSubmit {
+                        Task { await joinTapped() }
                     }
+
+                HStack {
+                    Button {
+                        pasteFromClipboardAndNormalize()
+                    } label: {
+                        Label("Pegar", systemImage: "doc.on.clipboard")
+                    }
+                    .disabled(!hasClipboardText || isJoining)
+
+                    Spacer()
+
+                    Button {
+                        normalizeInput()
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Label("Normalizar", systemImage: "wand.and.stars")
+                    }
+                    .foregroundColor(.secondary)
+                    .disabled(trimmedInput.isEmpty || isJoining)
                 }
-                .disabled(isSearching || inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-            
+
             if let errorMessage {
                 Section {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .font(.subheadline)
-                }
-            }
-            
-            if let memorial = foundMemorial {
-                Section("Memorial encontrado") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(memorial.name)
-                            .font(.headline)
-                        Text(memorial.petType.rawValue)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        if let quote = memorial.shortQuote, !quote.isEmpty {
-                            Text("“\(quote)”")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        NavigationLink {
-                            MemorialDetailView(memorial: memorial)
-                        } label: {
-                            Label("Ir al memorial", systemImage: "pawprint.fill")
-                        }
-                        .padding(.top, 8)
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                        Text(errorMessage)
+                            .foregroundColor(.red)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
                 }
             }
-        }
-        .navigationTitle("Unirme a un memorial")
-    }
-    
-    @MainActor
-    private func searchMemorial() async {
-        guard !isSearching else { return }
-        isSearching = true
-        errorMessage = nil
-        foundMemorial = nil
-        
-        do {
-            let memorial = try await listViewModel.joinMemorial(using: inputText)
-            foundMemorial = memorial
-        } catch {
-            AnalyticsManager.shared.log(AEvent.joinMemorial, [
-                "result": "not_found"
-            ])
-            if let joinError = error as? MemorialListViewModel.JoinMemorialError {
-                errorMessage = joinError.errorDescription
-            } else {
-                errorMessage = "Ha ocurrido un error al buscar el memorial."
+
+            Section {
+                Button {
+                    Task { await joinTapped() }
+                } label: {
+                    HStack {
+                        if isJoining { ProgressView() }
+                        Text(isJoining ? "Uniéndome…" : "Unirme")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .disabled(!canJoin)
+            }
+
+            Section {
+                Text("Tip: si te mandan un enlace, puedes pegarlo aquí. La app extraerá el código automáticamente.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
         }
-        
-        isSearching = false
+        .navigationTitle("Unirme")
+        .onAppear {
+            guard shouldAutoJoinOnAppear else { return }
+            guard !didAutoJoin else { return }
+
+            let trimmed = trimmedInput
+            guard !trimmed.isEmpty else { return }
+
+            didAutoJoin = true
+            Task { await joinTapped() }
+        }
+        .toast($toast)
+    }
+
+    // MARK: - Actions
+
+    private func pasteFromClipboardAndNormalize() {
+        let pasted = UIPasteboard.general.string ?? ""
+        input = pasted
+        normalizeInput()
+
+        if let token = viewModel.extractShareToken(from: pasted) {
+            toast = Toast("Pegado ✅ (\(token))")
+        } else {
+            toast = Toast(pasted.isEmpty ? "Portapapeles vacío" : "Pegado ✅ (revisa el código)")
+        }
+        Haptics.light()
+    }
+
+    /// Convierte "https://loquesea/m/AB12" -> "AB12" y lo pone en mayúsculas.
+    /// Usa tu lógica existente en MemorialListViewModel.
+    private func normalizeInput() {
+        let trimmed = trimmedInput
+
+        if let token = viewModel.extractShareToken(from: trimmed) {
+            input = token
+        } else {
+            input = trimmed
+        }
+    }
+
+    @MainActor
+    private func joinTapped() async {
+        guard !isJoining else { return }
+
+        errorMessage = nil
+        normalizeInput()
+
+        let trimmed = trimmedInput
+        guard !trimmed.isEmpty else {
+            errorMessage = "Pega un código o enlace para unirte."
+            return
+        }
+
+        isJoining = true
+        defer { isJoining = false }
+
+        do {
+            let memorial = try await viewModel.joinMemorial(using: trimmed)
+
+            // ✅ Feedback agradable
+            Haptics.success()
+
+            // ✅ Dispara navegación automática en la lista
+            viewModel.pendingNavigateToMemorial = memorial
+
+            // ✅ Feedback
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+            // ✅ Cierra la vista
+            dismiss()
+        } catch let joinError as MemorialListViewModel.JoinMemorialError {
+            // ✅ Mensaje inline más humano (y distinto según causa)
+            switch joinError {
+            case .invalidInput:
+                errorMessage = "Ese código o enlace no parece válido. Pégalo completo y prueba otra vez."
+                Haptics.light() // “ligera” (no es un fallo de red, solo input)
+            case .notFound:
+                errorMessage = "No he encontrado ningún memorial con ese código. Pide que te lo reenvíen."
+                Haptics.error() // más “error” (es una negativa)
+            }
+
+        } catch {
+            // Errores inesperados (red, permisos, etc.)
+            errorMessage = "No he podido unirme ahora mismo. Inténtalo de nuevo en unos segundos."
+            Haptics.error()
+        }
     }
 }

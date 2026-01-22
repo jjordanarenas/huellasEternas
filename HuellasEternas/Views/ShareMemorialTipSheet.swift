@@ -12,22 +12,21 @@ struct ShareMemorialTipSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let memorialName: String
-    let shareURL: URL
     let shareToken: String
 
     @State private var showCopiedAlert = false
     @State private var showWhatsAppFallbackAlert = false
 
-    /// Texto corto que se comparte (WhatsApp / Share sheet)
     private var shareText: String {
-        "He creado este memorial para \(memorialName). Puedes verlo y encender una vela en su honor: \(shareURL.absoluteString)\n\nCódigo: \(shareToken)"
+        "He creado un memorial para \(memorialName) en HuellasEternas.\n\n" +
+        "Para unirte, abre la app y ve a “Unirme a un memorial”, y pega este código:\n" +
+        "\(shareToken)"
     }
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
 
-                // Header emocional
                 HStack(spacing: 12) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 28))
@@ -41,7 +40,6 @@ struct ShareMemorialTipSheet: View {
                     }
                 }
 
-                // ✅ Código + copiar
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Código para unirse")
                         .font(.headline)
@@ -64,15 +62,13 @@ struct ShareMemorialTipSheet: View {
                         .buttonStyle(.bordered)
                     }
 
-                    Text("Si alguien no quiere abrir enlaces, puede pegar este código en “Unirme a un memorial”.")
+                    Text("La otra persona abre la app y pega este código en “Unirme a un memorial”.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 }
 
-                // ✅ Botones de compartir (WhatsApp + ShareLink)
                 VStack(spacing: 10) {
 
-                    // Botón WhatsApp directo (si está instalado)
                     Button {
                         openWhatsAppOrFallback()
                     } label: {
@@ -82,11 +78,7 @@ struct ShareMemorialTipSheet: View {
                     .buttonStyle(.borderedProminent)
 
                     // Share sheet estándar del sistema (siempre funciona)
-                    ShareLink(
-                        item: shareURL,
-                        subject: Text("Memorial para \(memorialName)"),
-                        message: Text(shareText)
-                    ) {
+                    ShareLink(item: shareText) {
                         Label("Compartir (más opciones)", systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity)
                     }
@@ -123,8 +115,6 @@ struct ShareMemorialTipSheet: View {
         }
     }
 
-    /// Intenta abrir WhatsApp con el texto ya relleno.
-    /// Si no está instalado o no se puede abrir, mostramos fallback.
     private func openWhatsAppOrFallback() {
         let encoded = shareText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let urlString = "whatsapp://send?text=\(encoded)"
@@ -138,10 +128,10 @@ struct ShareMemorialTipSheet: View {
             AnalyticsManager.shared.log(AEvent.memorialShared, [
                 "channel": "whatsapp"
             ])
-            
             UIApplication.shared.open(url)
         } else {
             showWhatsAppFallbackAlert = true
         }
     }
 }
+
