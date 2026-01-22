@@ -33,4 +33,13 @@ struct ShareComposer {
         guard FeatureFlags.hasCustomDomain else { return nil }
         return URL(string: "https://huellas.app/m/\(shareToken)")
     }
+
+    static func memorialShareText(memorialName: String, shareToken: String) -> String {
+        """
+        He creado este memorial para \(memorialName).
+        Para verlo y encender una vela en su honor, abre la app “HuellasEternas” y pega este código en “Unirme a un memorial”:
+
+        \(shareToken)
+        """
+    }
 }

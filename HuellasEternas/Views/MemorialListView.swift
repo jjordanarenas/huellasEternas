@@ -4,48 +4,62 @@
 //
 //  Created by Jorge Jordán on 18/11/25.
 //
-
 import SwiftUI
+import UIKit
 
 struct MemorialListView: View {
 
     @EnvironmentObject var viewModel: MemorialListViewModel
 
-    // Para abrir la sheet de “Nuevo memorial”
     @State private var showingNewMemorialSheet = false
 
-    // NavigationPath para navegación programática (onboarding -> detalle)
+    // ✅ Navegación programática
     @State private var path = NavigationPath()
+
+    // ✅ Join Sheet (con token opcional)
+    @State private var showingJoinSheet = false
+    @State private var joinPrefilledToken: String = ""
+
+    // Toast
+    @State private var toast: Toast? = nil
 
     var body: some View {
         NavigationStack(path: $path) {
             content
                 .navigationTitle("Tus memoriales")
 
-                // ✅ Destino para NavigationLink(value:)
+                // Destino del NavigationLink(value:)
                 .navigationDestination(for: Memorial.self) { memorial in
                     MemorialDetailView(memorial: memorial)
                 }
 
-                // ✅ Toolbar recuperada (unirse + crear)
+                // ✅ Toolbars recuperadas + botón de unirse abre SHEET
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        NavigationLink {
-                            JoinMemorialView()
-                                .environmentObject(viewModel)
-                        } label: {
-                            Image(systemName: "person.crop.circle.badge.plus")
+                        HStack(spacing: 12) {
+                            Button {
+                                presentJoinFromClipboardIfPossible()
+                            } label: {
+                                Image(systemName: "person.crop.circle.badge.plus")
+                            }
+                            .accessibilityLabel("Unirme a un memorial")
+
+                            NavigationLink {
+                                ArchivedMemorialsView()
+                                    .environmentObject(viewModel)
+                            } label: {
+                                Image(systemName: "archivebox")
+                            }
                         }
                     }
 
                     ToolbarItem(placement: .topBarTrailing) {
                         HStack {
-                            EditButton()
-                            NavigationLink {
-                                ArchivedMemorialsView().environmentObject(viewModel)
-                            } label: {
-                                Image(systemName: "archivebox")
+                            // ✅ Ocultar EditButton si no hay suficiente para reorder
+                            if viewModel.memorials.count > 1 {
+                                EditButton()
                             }
+
                             Button {
                                 showingNewMemorialSheet = true
                             } label: {
@@ -55,22 +69,60 @@ struct MemorialListView: View {
                     }
                 }
 
-                // ✅ Sheet recuperada
+                // ✅ Sheet: Nuevo memorial
                 .sheet(isPresented: $showingNewMemorialSheet) {
                     NewMemorialView()
                         .environmentObject(viewModel)
                 }
 
-                // ✅ Navegación automática al memorial recién creado
+                // ✅ Sheet: Unirme (token opcional)
+                .sheet(isPresented: $showingJoinSheet) {
+                    NavigationStack {
+                        JoinMemorialView(prefilledInput: joinPrefilledToken, autoJoinOnAppear: true)
+                            .environmentObject(viewModel)
+                    }
+                }
+
+                // ✅ Auto-navegación cuando el VM lo pide
                 .onChange(of: viewModel.pendingNavigateToMemorial) { newValue in
                     guard let memorial = newValue else { return }
                     path.append(memorial)
                     viewModel.pendingNavigateToMemorial = nil
                 }
+                .toast($toast) // ✅ toast overlay
         }
     }
 
-    // MARK: - Content (estados)
+    // MARK: - Present Join helper
+
+    /// Presenta la pantalla de "Unirme" con un token opcional.
+    /// - Si `prefilled` no está vacío, JoinMemorialView hará auto-join al aparecer (por tu lógica actual).
+    private func presentJoin(prefilled: String) {
+        joinPrefilledToken = prefilled
+        showingJoinSheet = true
+    }
+
+    // MARK: - Join helpers
+
+    /// Abre la pantalla "Unirme".
+    /// Si hay un código o enlace válido en el portapapeles,
+    /// se pasa como prefilledInput y se hace auto-join.
+    private func presentJoinFromClipboardIfPossible() {
+        let clipboard = UIPasteboard.general.string ?? ""
+        let trimmed = clipboard.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let token = viewModel.extractShareToken(from: trimmed) {
+            // 🎯 Caso pro: había token → auto-join
+            joinPrefilledToken = token
+        } else {
+            // 🧼 Caso normal: no había nada útil
+            joinPrefilledToken = ""
+        }
+
+        showingJoinSheet = true
+    }
+
+    // MARK: - Content (tu lógica de estados)
 
     @ViewBuilder
     private var content: some View {
@@ -105,18 +157,10 @@ struct MemorialListView: View {
             } else {
                 List {
                     ForEach(viewModel.memorials) { memorial in
-                        // ✅ IMPORTANTE: usar NavigationLink(value:) para que funcione con navigationDestination(for:)
                         NavigationLink(value: memorial) {
-                            // Si ya tenías MemorialRowView, úsalo:
                             MemorialRowView(memorial: memorial)
-
-                            // Si no, usa esto:
-                            // HStack(spacing: 12) {
-                            //     Image(systemName: memorial.petType.systemImage)
-                            //     Text(memorial.name)
-                            // }
                         }
-                        .swipeActions {
+                        .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
                                 Task { await viewModel.archive(memorial) }
                             } label: {
@@ -135,8 +179,22 @@ struct MemorialListView: View {
             }
         }
     }
-}
 
+    // MARK: - Join Flow
+    private func openJoinFlowFromClipboardIfPossible() {
+        let raw = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        if let token = viewModel.extractShareToken(from: raw) {
+            joinPrefilledToken = token
+            showingJoinSheet = true
+            toast = Toast("Código detectado y pegado ✅")
+        } else {
+            joinPrefilledToken = ""
+            showingJoinSheet = true
+            toast = Toast(raw.isEmpty ? "Pega un código o enlace para unirte" : "No detecté un código válido en el portapapeles")
+        }
+    }
+}
 
 // Vista de una fila individual en la lista de memoriales
 struct MemorialRowView: View {
