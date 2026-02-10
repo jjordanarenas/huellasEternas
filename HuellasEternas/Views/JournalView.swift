@@ -9,6 +9,8 @@ import SwiftUI
 
 /// Pantalla principal del Diario emocional.
 /// Muestra la lista de entradas y permite crear nuevas.
+import SwiftUI
+
 struct JournalView: View {
 
     @StateObject private var viewModel = JournalViewModel()
@@ -18,7 +20,14 @@ struct JournalView: View {
         HuellasListContainer {
             Group {
                 if viewModel.entries.isEmpty {
-                    emptyState
+                    ContentUnavailableView(
+                        "Tu diario está vacío",
+                        systemImage: "book.closed",
+                        description: Text("Escribe cómo te sientes hoy. Este espacio es solo para ti.")
+                    )
+                    .foregroundStyle(HuellasColor.textPrimary)
+                    .symbolRenderingMode(.hierarchical)
+                    .tint(HuellasColor.primaryDark) // icono
                 } else {
                     List {
                         ForEach(viewModel.entries) { entry in
@@ -28,6 +37,7 @@ struct JournalView: View {
                         .onDelete(perform: viewModel.deleteEntries)
                     }
                     .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden) // ✅ evita fondo blanco del List
                 }
             }
             .navigationTitle("Diario")
@@ -42,48 +52,14 @@ struct JournalView: View {
                 }
             }
             .sheet(isPresented: $showingNewEntrySheet) {
-                NewJournalEntryView { mood, text in
-                    viewModel.addEntry(mood: mood, text: text)
+                NavigationStack {
+                    NewJournalEntryView { mood, text in
+                        viewModel.addEntry(mood: mood, text: text)
+                    }
                 }
+                .tint(HuellasColor.primaryDark)
             }
         }
-    }
-
-    // ✅ Empty state propio (más control que ContentUnavailableView y 100% paleta)
-    private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "book.closed.fill")
-                .font(.system(size: 38))
-                .foregroundStyle(HuellasColor.primaryDark)
-
-            Text("Tu diario está vacío")
-                .font(.title3)
-                .bold()
-                .foregroundStyle(HuellasColor.textPrimary)
-
-            Text("Escribe cómo te sientes hoy. Este espacio es solo para ti.")
-                .font(.subheadline)
-                .foregroundStyle(HuellasColor.textSecondary)
-                .multilineTextAlignment(.center)
-
-            Button {
-                showingNewEntrySheet = true
-            } label: {
-                Label("Escribir primera entrada", systemImage: "square.and.pencil")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(HuellasColor.primary)
-            .padding(.top, 4)
-        }
-        .padding()
-        .background(HuellasColor.card)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(HuellasColor.divider, lineWidth: 1)
-        )
-        .padding()
     }
 }
 
@@ -94,24 +70,23 @@ struct JournalEntryRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 10) {
+
+            HStack(alignment: .firstTextBaseline) {
                 Text(entry.mood.emoji)
                     .font(.title2)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.mood.rawValue)
-                        .font(.headline)
-                        .foregroundStyle(HuellasColor.textPrimary)
-
-                    Text(formatDate(entry.createdAt))
-                        .font(.caption)
-                        .foregroundStyle(HuellasColor.textSecondary)
-                }
+                Text(entry.mood.rawValue)
+                    .font(.headline)
+                    .foregroundStyle(HuellasColor.textPrimary)
 
                 Spacer()
+
+                Text(formatDate(entry.createdAt))
+                    .font(.caption)
+                    .foregroundStyle(HuellasColor.textSecondary)
             }
 
-            if !entry.text.isEmpty {
+            if !entry.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(entry.text)
                     .font(.body)
                     .foregroundStyle(HuellasColor.textPrimary)

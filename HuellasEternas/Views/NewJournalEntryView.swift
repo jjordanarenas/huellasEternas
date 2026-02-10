@@ -10,6 +10,8 @@ import SwiftUI
 /// Formulario para crear una nueva entrada del diario.
 /// Incluye un botón "Necesito unas palabras de ánimo"
 /// que usa IA con límite mensual para usuarios no Premium.
+import SwiftUI
+
 struct NewJournalEntryView: View {
 
     @Environment(\.dismiss) private var dismiss
@@ -24,7 +26,6 @@ struct NewJournalEntryView: View {
     @State private var isGeneratingComfortMessage = false
     @State private var generationErrorMessage: String? = nil
     @State private var showGenerationErrorAlert = false
-
     @State private var showPaywall = false
 
     let onSave: (JournalMood, String) -> Void
@@ -34,191 +35,115 @@ struct NewJournalEntryView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            HuellasScreen { // ✅ aquí mejor Screen que ListContainer porque vamos a “cards”, no filas
-                ScrollView {
-                    VStack(spacing: 14) {
+        HuellasListContainer(topInset: 0) { // ✅ para Form, mejor 0
+            Form {
 
-                        moodCard
-                        textCard
-                        aiCard
-
-                        Spacer(minLength: 8)
+                Section("¿Cómo te sientes hoy?") {
+                    Picker("Estado de ánimo", selection: $selectedMood) {
+                        ForEach(JournalMood.allCases) { mood in
+                            HStack {
+                                Text(mood.emoji)
+                                Text(mood.rawValue)
+                                    .foregroundStyle(HuellasColor.textPrimary)
+                            }
+                            .tag(mood)
+                        }
                     }
-                    .padding()
+                    .tint(HuellasColor.primaryDark)
                 }
-                .navigationTitle("Nueva entrada")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { toolbarContent }
-                .alert("No se pudo generar el mensaje", isPresented: $showGenerationErrorAlert) {
-                    Button("Aceptar", role: .cancel) { }
-                } message: {
-                    Text(generationErrorMessage ?? "Ha ocurrido un error inesperado.")
-                }
-                .sheet(isPresented: $showPaywall) {
-                    PaywallView()
-                }
-            }
-        }
-    }
+                .listRowBackground(HuellasColor.card)
 
-    // MARK: - Cards
-
-    private var moodCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("¿Cómo te sientes hoy?")
-                .font(.headline)
-                .foregroundStyle(HuellasColor.textPrimary)
-
-            Picker("Estado de ánimo", selection: $selectedMood) {
-                ForEach(JournalMood.allCases) { mood in
-                    HStack {
-                        Text(mood.emoji)
-                        Text(mood.rawValue)
-                    }
-                    .tag(mood)
-                }
-            }
-            .tint(HuellasColor.primaryDark)
-            .pickerStyle(.menu)
-        }
-        .padding()
-        .background(HuellasColor.card)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(HuellasColor.divider, lineWidth: 1)
-        )
-    }
-
-    private var textCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Cuéntame un poco más")
-                .font(.headline)
-                .foregroundStyle(HuellasColor.textPrimary)
-
-            ZStack(alignment: .topLeading) {
-                TextEditor(text: $text)
-                    .frame(minHeight: 160)
-                    .foregroundStyle(HuellasColor.textPrimary)
-                    .scrollContentBackground(.hidden)
-                    .padding(10)
-                    .background(HuellasColor.backgroundSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(HuellasColor.divider, lineWidth: 1)
-                    )
-
-                if text.isEmpty {
-                    Text("Escribe lo que sientas…")
-                        .foregroundStyle(HuellasColor.textSecondary)
-                        .padding(.top, 18)
-                        .padding(.leading, 18)
-                }
-            }
-        }
-        .padding()
-        .background(HuellasColor.card)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(HuellasColor.divider, lineWidth: 1)
-        )
-    }
-
-    private var aiCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(HuellasColor.primaryDark)
-
-                Text("Palabras de ánimo")
-                    .font(.headline)
-                    .foregroundStyle(HuellasColor.textPrimary)
-
-                Spacer()
-            }
-
-            // Info sobre mensajes gratis restantes (solo para no Premium)
-            if !subscriptionManager.isPremium {
-                let remaining = aiUsageManager.remainingFreeMessages()
-
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: remaining > 0 ? "gift.fill" : "lock.fill")
-                        .foregroundStyle(HuellasColor.primaryDark)
-
-                    Text(
-                        remaining > 0
-                        ? "Te quedan \(remaining) mensajes de ánimo gratis este mes."
-                        : "Has usado todos tus mensajes de ánimo gratis este mes."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(HuellasColor.textSecondary)
-
-                    Spacer()
-                }
-            } else {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "infinity")
-                        .foregroundStyle(HuellasColor.primaryDark)
-                    Text("Ilimitado con Premium.")
-                        .font(.caption)
-                        .foregroundStyle(HuellasColor.textSecondary)
-                    Spacer()
-                }
-            }
-
-            Button {
-                Task { await handleGenerateComfortMessageTapped() }
-            } label: {
-                if isGeneratingComfortMessage {
-                    // ✅ Sin “rectángulo blanco”: ProgressView sin texto
-                    HStack(spacing: 10) {
-                        ProgressView()
-                            .tint(HuellasColor.textPrimary)
-
-                        Text("Buscando palabras de ánimo…")
+                Section("Cuéntame un poco más") {
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $text)
+                            .frame(minHeight: 160)
                             .foregroundStyle(HuellasColor.textPrimary)
+                            .scrollContentBackground(.hidden)
+                            .background(HuellasColor.backgroundSecondary) // ✅ evita “blanco”
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(HuellasColor.divider, lineWidth: 1)
+                            )
 
-                        Spacer()
+                        if text.isEmpty {
+                            Text("Escribe lo que sientas…")
+                                .foregroundStyle(HuellasColor.textSecondary)
+                                .padding(.top, 12)
+                                .padding(.leading, 12)
+                        }
                     }
-                } else {
-                    Label("Necesito unas palabras de ánimo", systemImage: "sparkles")
-                        .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+
+                    if !subscriptionManager.isPremium {
+                        let remaining = aiUsageManager.remainingFreeMessages()
+
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: remaining > 0 ? "gift.fill" : "lock.fill")
+                                .foregroundStyle(HuellasColor.primaryDark)
+
+                            Text(
+                                remaining > 0
+                                ? "Te quedan \(remaining) mensajes de ánimo gratis este mes."
+                                : "Has usado todos tus mensajes de ánimo gratis este mes."
+                            )
+                            .font(.caption)
+                            .foregroundStyle(HuellasColor.textSecondary)
+
+                            Spacer()
+                        }
+                        .padding(.top, 2)
+                    }
+
+                    Button {
+                        Task { await handleGenerateComfortMessageTapped() }
+                    } label: {
+                        if isGeneratingComfortMessage {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(HuellasColor.textPrimary)
+                                Text("Buscando palabras de ánimo…")
+                                    .foregroundStyle(HuellasColor.textPrimary)
+                            }
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            Label("Necesito unas palabras de ánimo", systemImage: "sparkles")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .disabled(isGeneratingComfortMessage)
+                    .buttonStyle(.borderedProminent)
+                    .tint(HuellasColor.primary) // ✅ CTA dorado
+                    .padding(.top, 6)
+                }
+                .listRowBackground(HuellasColor.card)
+            }
+            .scrollContentBackground(.hidden) // ✅ fondo general del Form
+            .navigationTitle("Nueva entrada")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundStyle(HuellasColor.primaryDark)
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Guardar") {
+                        onSave(selectedMood, text)
+                        dismiss()
+                    }
+                    .foregroundStyle(HuellasColor.primaryDark)
+                    .disabled(trimmedText.isEmpty)
                 }
             }
-            .disabled(isGeneratingComfortMessage)
-            .buttonStyle(.borderedProminent)
-            .tint(HuellasColor.primary) // ✅ CTA dorado
-            .padding(.top, 2)
-        }
-        .padding()
-        .background(HuellasColor.card)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(HuellasColor.divider, lineWidth: 1)
-        )
-    }
-
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button("Cancelar") { dismiss() }
-                .foregroundStyle(HuellasColor.primaryDark)
-        }
-
-        ToolbarItem(placement: .topBarTrailing) {
-            Button("Guardar") {
-                onSave(selectedMood, text)
-                dismiss()
+            .alert("No se pudo generar el mensaje", isPresented: $showGenerationErrorAlert) {
+                Button("Aceptar", role: .cancel) { }
+            } message: {
+                Text(generationErrorMessage ?? "Ha ocurrido un error inesperado.")
             }
-            .foregroundStyle(HuellasColor.primaryDark)
-            .disabled(trimmedText.isEmpty)
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
+            }
         }
     }
 
