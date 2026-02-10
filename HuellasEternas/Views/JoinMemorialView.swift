@@ -17,11 +17,9 @@ struct JoinMemorialView: View {
     @State private var isJoining: Bool = false
     @State private var errorMessage: String? = nil
 
-    // Para evitar que el auto-join se dispare más de una vez
     @State private var didAutoJoin: Bool = false
     @State private var toast: Toast? = nil
 
-    // Si quieres auto-join cuando llegue prefilled (por ejemplo desde un universal link futuro)
     private let shouldAutoJoinOnAppear: Bool
 
     init(prefilledInput: String = "", autoJoinOnAppear: Bool = true) {
@@ -46,83 +44,159 @@ struct JoinMemorialView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Código o enlace") {
-                TextField("Pega el código o el enlace", text: $input)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .submitLabel(.go)
-                    .onSubmit {
-                        Task { await joinTapped() }
+        HuellasScreen {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+
+                    header
+
+                    codeCard
+
+                    if let errorMessage {
+                        errorCard(errorMessage)
                     }
 
-                HStack {
-                    Button {
-                        pasteFromClipboardAndNormalize()
-                    } label: {
-                        Label("Pegar", systemImage: "doc.on.clipboard")
-                    }
-                    .disabled(!hasClipboardText || isJoining)
+                    joinButton
 
-                    Spacer()
+                    tipCard
 
-                    Button {
-                        normalizeInput()
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    } label: {
-                        Label("Normalizar", systemImage: "wand.and.stars")
-                    }
-                    .foregroundColor(.secondary)
-                    .disabled(trimmedInput.isEmpty || isJoining)
+                    Spacer(minLength: 20)
                 }
+                .padding()
             }
+            .navigationTitle("Unirme")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                guard shouldAutoJoinOnAppear,
+                      !didAutoJoin,
+                      !trimmedInput.isEmpty else { return }
 
-            if let errorMessage {
-                Section {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.red)
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                    }
-                    .padding(.vertical, 6)
-                }
+                didAutoJoin = true
+                Task { await joinTapped() }
             }
-
-            Section {
-                Button {
-                    Task { await joinTapped() }
-                } label: {
-                    HStack {
-                        if isJoining { ProgressView() }
-                        Text(isJoining ? "Uniéndome…" : "Unirme")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .disabled(!canJoin)
-            }
-
-            Section {
-                Text("Tip: si te mandan un enlace, puedes pegarlo aquí. La app extraerá el código automáticamente.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-            }
+            .toast($toast)
         }
-        .navigationTitle("Unirme")
-        .onAppear {
-            guard shouldAutoJoinOnAppear else { return }
-            guard !didAutoJoin else { return }
-
-            let trimmed = trimmedInput
-            guard !trimmed.isEmpty else { return }
-
-            didAutoJoin = true
-            Task { await joinTapped() }
-        }
-        .toast($toast)
     }
 
-    // MARK: - Actions
+    // MARK: - UI
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Unirte a un memorial")
+                .font(.title3)
+                .bold()
+                .foregroundStyle(HuellasColor.textPrimary)
+
+            Text("Introduce el código que te han compartido para unirte.")
+                .font(.subheadline)
+                .foregroundStyle(HuellasColor.textSecondary)
+        }
+    }
+
+    private var codeCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Código o enlace", systemImage: "key.fill")
+                .font(.headline)
+                .foregroundStyle(HuellasColor.textPrimary)
+
+            TextField("Pega aquí el código o enlace", text: $input)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .submitLabel(.go)
+                .foregroundStyle(HuellasColor.textPrimary)
+                .padding(12)
+                .background(HuellasColor.backgroundSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(HuellasColor.divider, lineWidth: 1)
+                )
+                .onSubmit { Task { await joinTapped() } }
+
+            HStack {
+                Button {
+                    pasteFromClipboardAndNormalize()
+                } label: {
+                    Label("Pegar", systemImage: "doc.on.clipboard")
+                }
+                .disabled(!hasClipboardText || isJoining)
+
+                Spacer()
+
+                Button {
+                    normalizeInput()
+                    Haptics.light()
+                } label: {
+                    Label("Normalizar", systemImage: "wand.and.stars")
+                }
+                .foregroundStyle(HuellasColor.textSecondary)
+                .disabled(trimmedInput.isEmpty || isJoining)
+            }
+        }
+        .padding()
+        .background(HuellasColor.card)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(HuellasColor.divider, lineWidth: 1)
+        )
+    }
+
+    private func errorCard(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(HuellasColor.primaryDark)
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(HuellasColor.textPrimary)
+        }
+        .padding()
+        .background(HuellasColor.backgroundSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(HuellasColor.divider, lineWidth: 1)
+        )
+    }
+
+    private var joinButton: some View {
+        Button {
+            Task { await joinTapped() }
+        } label: {
+            HStack(spacing: 10) {
+                if isJoining {
+                    ProgressView()
+                        .tint(HuellasColor.textPrimary)
+                }
+                Text(isJoining ? "Uniéndome…" : "Unirme")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(HuellasColor.primary)
+        .disabled(!canJoin)
+    }
+
+    private var tipCard: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "info.circle")
+                .foregroundStyle(HuellasColor.textSecondary)
+
+            Text("Si te han enviado un enlace, puedes pegarlo aquí. La app extraerá el código automáticamente.")
+                .font(.footnote)
+                .foregroundStyle(HuellasColor.textSecondary)
+        }
+        .padding()
+        .background(HuellasColor.card)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(HuellasColor.divider, lineWidth: 1)
+        )
+    }
+
+    // MARK: - Logic
 
     private func pasteFromClipboardAndNormalize() {
         let pasted = UIPasteboard.general.string ?? ""
@@ -130,18 +204,15 @@ struct JoinMemorialView: View {
         normalizeInput()
 
         if let token = viewModel.extractShareToken(from: pasted) {
-            toast = Toast("Pegado ✅ (\(token))")
+            toast = Toast("Código detectado y pegado ✅")
         } else {
-            toast = Toast(pasted.isEmpty ? "Portapapeles vacío" : "Pegado ✅ (revisa el código)")
+            toast = Toast(pasted.isEmpty ? "Portapapeles vacío" : "Pegado, revisa el código")
         }
         Haptics.light()
     }
 
-    /// Convierte "https://loquesea/m/AB12" -> "AB12" y lo pone en mayúsculas.
-    /// Usa tu lógica existente en MemorialListViewModel.
     private func normalizeInput() {
         let trimmed = trimmedInput
-
         if let token = viewModel.extractShareToken(from: trimmed) {
             input = token
         } else {
@@ -168,30 +239,20 @@ struct JoinMemorialView: View {
         do {
             let memorial = try await viewModel.joinMemorial(using: trimmed)
 
-            // ✅ Feedback agradable
             Haptics.success()
-
-            // ✅ Dispara navegación automática en la lista
             viewModel.pendingNavigateToMemorial = memorial
-
-            // ✅ Feedback
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-
-            // ✅ Cierra la vista
             dismiss()
+
         } catch let joinError as MemorialListViewModel.JoinMemorialError {
-            // ✅ Mensaje inline más humano (y distinto según causa)
             switch joinError {
             case .invalidInput:
-                errorMessage = "Ese código o enlace no parece válido. Pégalo completo y prueba otra vez."
-                Haptics.light() // “ligera” (no es un fallo de red, solo input)
+                errorMessage = "Ese código o enlace no parece válido."
+                Haptics.light()
             case .notFound:
-                errorMessage = "No he encontrado ningún memorial con ese código. Pide que te lo reenvíen."
-                Haptics.error() // más “error” (es una negativa)
+                errorMessage = "No se ha encontrado ningún memorial con ese código."
+                Haptics.error()
             }
-
         } catch {
-            // Errores inesperados (red, permisos, etc.)
             errorMessage = "No he podido unirme ahora mismo. Inténtalo de nuevo en unos segundos."
             Haptics.error()
         }

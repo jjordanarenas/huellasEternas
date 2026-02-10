@@ -25,6 +25,7 @@ struct HuellasEternasApp: App {
         // Inicializa Firebase cuando arranca la app
         FirebaseApp.configure()
         signInAnonymouslyIfNeeded()
+        HuellasTheme.apply()
     }
 
     private func signInAnonymouslyIfNeeded() {
