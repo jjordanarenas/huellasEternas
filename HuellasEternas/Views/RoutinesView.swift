@@ -9,18 +9,32 @@ import SwiftUI
 
 struct RoutinesView: View {
 
-    // Rutinas locales
     private let routines = RoutineCatalog.all
     private let progressStore = RoutineProgressStore()
 
     var body: some View {
         HuellasListContainer {
             List {
+
+                // Intro (card)
                 Section {
-                    Text("Rutinas cortas para acompañarte en días difíciles. No tienes que hacerlas perfectas; solo empezar.")
-                        .font(.footnote)
-                        .foregroundStyle(HuellasColor.textSecondary)
-                        .padding(.vertical, 6)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(HuellasColor.primaryDark)
+
+                            Text("Rutinas")
+                                .font(.headline)
+                                .foregroundStyle(HuellasColor.textPrimary)
+
+                            Spacer()
+                        }
+
+                        Text("Rutinas cortas para acompañarte en días difíciles. No tienes que hacerlas perfectas; solo empezar.")
+                            .font(.footnote)
+                            .foregroundStyle(HuellasColor.textSecondary)
+                    }
+                    .padding(.vertical, 6)
                 }
                 .listRowBackground(HuellasColor.card)
 
@@ -41,9 +55,12 @@ struct RoutinesView: View {
             }
             .navigationTitle("Rutinas")
             .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden) // ✅ evita blancos
         }
     }
 }
+
+// MARK: - Row
 
 private struct RoutineRowView: View {
     let routine: Routine
@@ -52,13 +69,23 @@ private struct RoutineRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: routine.iconSystemName)
-                .font(.system(size: 22))
-                .frame(width: 30)
-                .foregroundStyle(HuellasColor.primaryDark)
+
+            // Icono con círculo (consistente con MemorialRow)
+            ZStack {
+                Circle()
+                    .fill(HuellasColor.backgroundSecondary)
+
+                Circle()
+                    .stroke(HuellasColor.divider, lineWidth: 1)
+
+                Image(systemName: routine.iconSystemName)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(HuellasColor.primaryDark)
+            }
+            .frame(width: 40, height: 40)
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
+                HStack(alignment: .firstTextBaseline) {
                     Text(routine.title)
                         .font(.headline)
                         .foregroundStyle(HuellasColor.textPrimary)
@@ -74,20 +101,27 @@ private struct RoutineRowView: View {
                     .font(.subheadline)
                     .foregroundStyle(HuellasColor.textSecondary)
 
-                // Estado de progreso (simple)
-                HStack(spacing: 10) {
-                    if count > 0 {
-                        Text("Hecha \(count)x")
-                            .font(.caption)
-                            .foregroundStyle(HuellasColor.textSecondary)
+                // Progreso (simple y discreto)
+                if count > 0 || lastDate != nil {
+                    HStack(spacing: 10) {
+                        if count > 0 {
+                            Label("Hecha \(count)x", systemImage: "checkmark.circle.fill")
+                                .labelStyle(.titleAndIcon)
+                                .font(.caption)
+                                .foregroundStyle(HuellasColor.primaryDark)
+                        }
+
+                        if let lastDate {
+                            Text("Última: \(lastDate.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption)
+                                .foregroundStyle(HuellasColor.textSecondary)
+                        }
                     }
-                    if let lastDate {
-                        Text("Última: \(lastDate.formatted(date: .abbreviated, time: .omitted))")
-                            .font(.caption)
-                            .foregroundStyle(HuellasColor.textSecondary)
-                    }
+                    .padding(.top, 2)
                 }
             }
+
+            Spacer(minLength: 0)
         }
         .padding(.vertical, 6)
     }

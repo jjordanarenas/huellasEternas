@@ -56,6 +56,8 @@ struct RootTabView: View {
             }
         }
         .tint(HuellasColor.primaryDark)        // ✅ color global de acento
+        .toolbarBackground(HuellasColor.background, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .preferredColorScheme(.light)         // ✅ coherencia con tu icono
         .sheet(isPresented: $showPaywall) {
             PaywallView()

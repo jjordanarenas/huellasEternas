@@ -41,7 +41,7 @@ enum RoutineCatalog {
             id: "write_3lines",
             title: "Escribir 3 líneas",
             subtitle: "Suelta lo que tengas dentro, sin juzgarte.",
-            iconSystemName: "pencil.and.outline",
+            iconSystemName: "square.and.pencil",
             steps: [
                 "¿Qué siento ahora mismo?",
                 "¿Qué echo de menos hoy?",

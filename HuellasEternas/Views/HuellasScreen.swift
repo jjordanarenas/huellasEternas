@@ -21,11 +21,11 @@ struct HuellasScreen<Content: View>: View {
     var body: some View {
         ZStack {
             HuellasColor.background
-               // .ignoresSafeArea()
+                .ignoresSafeArea()   // ✅ CLAVE: cubre también bajo TabBar/NavBar
 
             content
         }
-        .tint(HuellasColor.primaryDark)            // ✅ acento global
-        .preferredColorScheme(.light)              // ✅ coherencia con icono/paleta
+        .tint(HuellasColor.primaryDark)
+        .preferredColorScheme(.light)
     }
 }
