@@ -17,39 +17,44 @@ struct SettingsView: View {
     private let supportURL = URL(string: "https://insaneplatypusgames.wordpress.com/huellas-eternas-soporte/")!
 
     var body: some View {
-        HuellasListContainer {
-            List {
-                subscriptionSection
-                feedbackSection
-                legalSection
-                aboutSection
+        NavigationStack {
+            HuellasScreen {
+
+                List {
+                    subscriptionSection
+                    feedbackSection
+                    legalSection
+                    aboutSection
+                }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)   // ❗️evita fondo blanco
+                .navigationTitle("Ajustes")
             }
-            .navigationTitle("Ajustes")
-            .listStyle(.insetGrouped)
         }
     }
-
-    // MARK: - Sections
 
     private var subscriptionSection: some View {
         Section("Suscripción") {
 
             HStack {
-                Label("Estado", systemImage: "checkmark.seal.fill")
+                Text("Estado")
                     .foregroundStyle(HuellasColor.textPrimary)
 
                 Spacer()
 
                 Text(subscriptionManager.isPremium ? "Premium" : "Free")
-                    .font(.subheadline)
-                    .foregroundStyle(subscriptionManager.isPremium ? HuellasColor.primaryDark : HuellasColor.textSecondary)
+                    .foregroundStyle(
+                        subscriptionManager.isPremium
+                        ? HuellasColor.primaryDark
+                        : HuellasColor.textSecondary
+                    )
             }
             .listRowBackground(HuellasColor.card)
 
             Button {
                 openManageSubscriptions()
             } label: {
-                Label("Gestionar suscripción", systemImage: "creditcard")
+                Label("Gestionar suscripción", systemImage: "creditcard.fill")
                     .foregroundStyle(HuellasColor.textPrimary)
             }
             .listRowBackground(HuellasColor.card)
@@ -112,7 +117,7 @@ struct SettingsView: View {
         Section("App") {
 
             HStack {
-                Label("Versión", systemImage: "info.circle.fill")
+                Text("Versión")
                     .foregroundStyle(HuellasColor.textPrimary)
 
                 Spacer()
@@ -123,8 +128,6 @@ struct SettingsView: View {
             .listRowBackground(HuellasColor.card)
         }
     }
-
-    // MARK: - Actions
 
     private func openManageSubscriptions() {
         guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else { return }
@@ -140,7 +143,7 @@ struct SettingsView: View {
     private func sendFeedbackEmail() {
         let subject = "Feedback HuellasEternas"
         let body = "Hola, quería comentar lo siguiente:\n\n"
-        let mail = "mailto:insaneplatypusgames@gmail.com?subject=\(subject.urlEncoded)&body=\(body.urlEncoded)"
+        let mail = "mailto:huellaseternasapp@gmail.com?subject=\(subject.urlEncoded)&body=\(body.urlEncoded)"
 
         if let url = URL(string: mail) {
             UIApplication.shared.open(url)
@@ -152,10 +155,5 @@ struct SettingsView: View {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "-"
         return "\(version) (\(build))"
     }
-}
 
-private extension String {
-    var urlEncoded: String {
-        addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? self
-    }
 }
