@@ -60,7 +60,9 @@ struct RootTabView: View {
             showOnboarding = !onboardingState.isCompleted
         }
         .fullScreenCover(isPresented: $showOnboarding) {
-            OnboardingFlowView()
+            OnboardingFlowView(
+                onSkip: { showOnboarding = false }
+            )
         }
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
             guard let url = activity.webpageURL else { return }

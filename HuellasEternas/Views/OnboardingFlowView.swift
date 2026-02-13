@@ -14,6 +14,8 @@ struct OnboardingFlowView: View {
 
     @StateObject private var vm = OnboardingViewModel()
 
+    let onSkip: () -> Void   // ✅
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -61,7 +63,6 @@ struct OnboardingFlowView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Saltar") { dismiss() }
                         .foregroundStyle(HuellasColor.textSecondary)
-                        .opacity(vm.step == .createMemorial ? 0 : 1)
                 }
             }
 
@@ -78,9 +79,7 @@ struct OnboardingFlowView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
                     .padding(.bottom, 12)
-                    //.background(HuellasColor.card) // ✅ pinta TODO el panel
                 }
-                //.background(HuellasColor.card) // ✅ por si acaso
             }
         }
         .tint(HuellasColor.primaryDark)

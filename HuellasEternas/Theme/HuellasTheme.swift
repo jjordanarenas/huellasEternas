@@ -16,6 +16,22 @@ final class HuellasTheme {
         appearance.titleTextAttributes = [.foregroundColor: UIColor(HuellasColor.textPrimary)]
         appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(HuellasColor.textPrimary)]
 
+        // ✅ IMPORTANTE: estilos de botones (Saltar, etc.)
+        let buttonAppearance = UIBarButtonItemAppearance()
+        buttonAppearance.normal.titleTextAttributes = [
+            .foregroundColor: UIColor(HuellasColor.primaryDark)
+        ]
+        buttonAppearance.highlighted.titleTextAttributes = [
+            .foregroundColor: UIColor(HuellasColor.primaryDark)
+        ]
+        buttonAppearance.disabled.titleTextAttributes = [
+            .foregroundColor: UIColor(HuellasColor.textSecondary)
+        ]
+
+        appearance.buttonAppearance = buttonAppearance
+        appearance.doneButtonAppearance = buttonAppearance
+        appearance.backButtonAppearance = buttonAppearance
+
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
         UINavigationBar.appearance().compactAppearance = appearance
