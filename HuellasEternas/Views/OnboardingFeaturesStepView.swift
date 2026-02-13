@@ -8,116 +8,52 @@
 import SwiftUI
 
 struct OnboardingFeaturesStepView: View {
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
 
-            Spacer()
-
-            header
-
-            featuresGrid
-
-            footerText
-
-            Spacer()
-        }
-        .padding()
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
             Text("¿Qué puedes hacer aquí?")
                 .font(.title)
                 .bold()
                 .foregroundStyle(HuellasColor.textPrimary)
 
-            Text("Un espacio cálido para recordar, acompañarte y compartir ese cariño con quien lo necesite.")
-                .font(.subheadline)
-                .foregroundStyle(HuellasColor.textSecondary)
-        }
-    }
-
-    private var featuresGrid: some View {
-        VStack(spacing: 12) {
-            FeatureCard(
-                title: "Crear memoriales",
-                subtitle: "Con fotos, frases y detalles importantes.",
-                systemImage: "photo.on.rectangle.angled"
+            VStack(alignment: .leading, spacing: 12) {
+                OnboardingFeatureRow(text: "Crear memoriales con fotos y frases", systemImage: "photo.on.rectangle.angled")
+                OnboardingFeatureRow(text: "Encender velas con dedicatorias", systemImage: "candle.fill")
+                OnboardingFeatureRow(text: "Diario emocional para desahogarte", systemImage: "book.closed.fill")
+                OnboardingFeatureRow(text: "Mensajes de ánimo con IA cuando lo necesites", systemImage: "sparkles")
+                OnboardingFeatureRow(text: "Compartir el memorial con amigos/familia", systemImage: "square.and.arrow.up")
+            }
+            .padding()
+            .background(HuellasColor.card)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(HuellasColor.divider, lineWidth: 1)
             )
-
-            FeatureCard(
-                title: "Encender velas",
-                subtitle: "Con dedicatorias para honrar su recuerdo.",
-                systemImage: "candle.fill"
-            )
-
-            FeatureCard(
-                title: "Diario emocional",
-                subtitle: "Para escribir y soltar lo que llevas dentro.",
-                systemImage: "book.closed.fill"
-            )
-
-            FeatureCard(
-                title: "Mensajes de ánimo con IA",
-                subtitle: "Cuando te falten fuerzas o palabras.",
-                systemImage: "sparkles"
-            )
-
-            FeatureCard(
-                title: "Compartir con familia",
-                subtitle: "Para que otros también puedan acompañarte.",
-                systemImage: "square.and.arrow.up"
-            )
-        }
-        .padding(.top, 4)
-    }
-
-    private var footerText: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "heart.fill")
-                .foregroundStyle(HuellasColor.primaryDark)
 
             Text("Empecemos creando el primer memorial.")
                 .font(.subheadline)
                 .foregroundStyle(HuellasColor.textSecondary)
+                .padding(.top, 6)
 
-            Spacer()
+            Spacer(minLength: 12)
         }
-        .padding(.top, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-private struct FeatureCard: View {
-    let title: String
-    let subtitle: String
+private struct OnboardingFeatureRow: View {
+    let text: String
     let systemImage: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(spacing: 10) {
             Image(systemName: systemImage)
-                .font(.system(size: 20))
                 .foregroundStyle(HuellasColor.primaryDark)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(HuellasColor.textPrimary)
-
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(HuellasColor.textSecondary)
-            }
-
+            Text(text)
+                .foregroundStyle(HuellasColor.textPrimary)
             Spacer()
         }
-        .padding(14)
-        .background(HuellasColor.card)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(HuellasColor.divider, lineWidth: 1)
-        )
+        .font(.body)
     }
 }

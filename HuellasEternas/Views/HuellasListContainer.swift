@@ -30,23 +30,3 @@ struct HuellasListContainer<Content: View>: View {
         .background(HuellasColor.background)
     }
 }
-
-/*
-struct HuellasListContainer<Content: View>: View {
-
-    private let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        
-        self.content = content()
-    }
-
-    var body: some View {
-        HuellasScreen {
-            content
-                // ✅ si dentro hay List/Form, esto ayuda a que no asome blanco
-                .scrollContentBackground(.hidden)
-                .background(HuellasColor.background)
-        }
-    }
-}*/

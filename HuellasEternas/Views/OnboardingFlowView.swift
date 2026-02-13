@@ -7,8 +7,6 @@
 
 import SwiftUI
 
-/// Contenedor del onboarding.
-/// Decide qué pantalla mostrar según el step del ViewModel.
 struct OnboardingFlowView: View {
 
     @EnvironmentObject var memorialListVM: MemorialListViewModel
@@ -18,71 +16,74 @@ struct OnboardingFlowView: View {
 
     var body: some View {
         NavigationStack {
-            HuellasScreen {
-                VStack(spacing: 100) {
+            ZStack {
+                HuellasColor.background.ignoresSafeArea()
 
-                    // CONTENIDO PRINCIPAL
-                    content
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .animation(.easeInOut(duration: 0.22), value: vm.step)
+                // ✅ Contenido principal scrollable (no se corta en ningún iPhone)
+                ScrollView {
+                    Group {
+                        switch vm.step {
+                        case .welcome:
+                            OnboardingWelcomeStepView()
 
-                    // BARRA INFERIOR (sin dobles padding/background)
+                        case .features:
+                            OnboardingFeaturesStepView()
+
+                        case .createMemorial:
+                            OnboardingCreateMemorialStepView(
+                                petName: $vm.petName,
+                                petType: $vm.petType,
+                                shortQuote: $vm.shortQuote,
+                                errorMessage: vm.errorMessage,
+                                isCreating: vm.isCreating,
+                                onCreate: {
+                                    vm.createFirstMemorial(using: memorialListVM) {
+                                        dismiss()
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    .padding(20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
+                   /* .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24) // aire antes de la bottom bar*/
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(HuellasColor.background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Saltar") { dismiss() }
+                        .foregroundStyle(HuellasColor.textSecondary)
+                        .opacity(vm.step == .createMemorial ? 0 : 1)
+                }
+            }
+
+            // ✅ Bottom bar fija, siempre visible, sin blancos alrededor
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 0) {
+                    Divider().background(HuellasColor.divider)
+
                     OnboardingBottomBar(
                         step: vm.step,
                         onBack: { vm.back() },
                         onNext: { vm.next() }
                     )
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                    //.background(HuellasColor.card) // ✅ pinta TODO el panel
                 }
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { toolbarContent }
+                //.background(HuellasColor.card) // ✅ por si acaso
             }
         }
-    }
-
-    // MARK: - Content
-
-    @ViewBuilder
-    private var content: some View {
-        switch vm.step {
-        case .welcome:
-            OnboardingWelcomeStepView()
-                .padding() // ✅ este step sí lo necesita
-
-        case .features:
-            OnboardingFeaturesStepView()
-                .padding() // ✅ este step sí lo necesita
-
-        case .createMemorial:
-            // ✅ este step NO debe llevar padding externo porque ya es un Form en contenedor
-            OnboardingCreateMemorialStepView(
-                petName: $vm.petName,
-                petType: $vm.petType,
-                shortQuote: $vm.shortQuote,
-                errorMessage: vm.errorMessage,
-                isCreating: vm.isCreating,
-                onCreate: {
-                    vm.createFirstMemorial(using: memorialListVM) {
-                        dismiss()
-                    }
-                }
-            )
-        }
-    }
-
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                dismiss()
-            } label: {
-                Text("Saltar")
-                    .foregroundStyle(HuellasColor.primaryDark)
-            }
-            // ✅ Mejor que opacity: evita que sea “clicable” cuando no toca
-            .disabled(vm.step == .createMemorial)
-            .opacity(vm.step == .createMemorial ? 0 : 1)
-        }
+        .tint(HuellasColor.primaryDark)
+        .preferredColorScheme(.light)
     }
 }

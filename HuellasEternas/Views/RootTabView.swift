@@ -21,12 +21,6 @@ struct RootTabView: View {
 
     var body: some View {
         TabView {
-            /*NavigationStack(path: $memorialPath) {
-                MemorialListView(path: $memorialPath)
-            }
-            .tabItem {
-                Label("Memoriales", systemImage: "pawprint.fill")
-            }*/
             // TAB 1: Memoriales
             MemorialListView()
             .tabItem {

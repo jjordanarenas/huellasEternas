@@ -8,35 +8,25 @@
 import SwiftUI
 
 struct OnboardingWelcomeStepView: View {
-
     var body: some View {
-        VStack(spacing: 28) {
-
-            Spacer()
+        VStack(alignment: .leading, spacing: 16) {
 
             Image(systemName: "pawprint.circle.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(HuellasColor.primaryDark)
 
-            VStack(spacing: 12) {
-                Text("Un lugar para recordar")
-                    .font(.largeTitle)
-                    .bold()
-                    .foregroundStyle(HuellasColor.textPrimary)
-                    .multilineTextAlignment(.center)
+            Text("Un lugar para recordar")
+                .font(.largeTitle)
+                .bold()
+                .foregroundStyle(HuellasColor.textPrimary)
 
-                Text("""
-                Crea un memorial para tu mascota, recibe apoyo cuando lo necesites \
-                y permite que amigos y familia también puedan rendir homenaje.
-                """)
+            Text("Crea un memorial para tu mascota, recibe apoyo cuando lo necesites y deja que amigos y familia también puedan rendir homenaje.")
                 .font(.body)
                 .foregroundStyle(HuellasColor.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 12)
-            }
 
-            Spacer()
+            // ✅ evita “vacío raro”, pero deja aire
+            Spacer(minLength: 12)
         }
-        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

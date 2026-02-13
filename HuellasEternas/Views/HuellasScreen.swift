@@ -11,7 +11,6 @@ import SwiftUI
 /// Contenedor base para pantallas "normales" (ScrollView, VStack…).
 /// Aplica fondo global + tint de la app + color scheme.
 struct HuellasScreen<Content: View>: View {
-
     private let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -20,9 +19,7 @@ struct HuellasScreen<Content: View>: View {
 
     var body: some View {
         ZStack {
-            HuellasColor.background
-                .ignoresSafeArea()   // ✅ CLAVE: cubre también bajo TabBar/NavBar
-
+            HuellasColor.background.ignoresSafeArea()
             content
         }
         .tint(HuellasColor.primaryDark)
