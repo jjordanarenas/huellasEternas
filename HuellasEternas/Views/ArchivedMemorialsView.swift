@@ -41,9 +41,16 @@ struct ArchivedMemorialsView: View {
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("Archivados")
+            .toolbar {
+                // (Opcional) icono back también en dorado
+                ToolbarItem(placement: .topBarTrailing) {
+                    EmptyView()
+                }
+            }
             .refreshable {
                 await viewModel.loadMemorials()
             }
