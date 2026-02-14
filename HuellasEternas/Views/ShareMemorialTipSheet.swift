@@ -25,80 +25,21 @@ struct ShareMemorialTipSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-
-                HStack(spacing: 12) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 28))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Comparte este memorial")
-                            .font(.title3)
-                            .bold()
-                        Text("Invita a amigos y familia para que también puedan encender una vela en honor a \(memorialName).")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
+            HuellasScreen {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                    codeCard
+                    actionButtons
+                    Spacer(minLength: 0)
                 }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Código para unirse")
-                        .font(.headline)
-
-                    HStack(spacing: 12) {
-                        Text(shareToken)
-                            .font(.system(.title3, design: .monospaced))
-                            .bold()
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 12)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(12)
-
-                        Button {
-                            UIPasteboard.general.string = shareToken
-                            showCopiedAlert = true
-                        } label: {
-                            Label("Copiar", systemImage: "doc.on.doc")
-                        }
-                        .buttonStyle(.bordered)
+                .padding()
+                .navigationTitle("Compartir")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Cerrar") { dismiss() }
+                            .foregroundStyle(HuellasColor.primaryDark)
                     }
-
-                    Text("La otra persona abre la app y pega este código en “Unirme a un memorial”.")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                }
-
-                VStack(spacing: 10) {
-
-                    Button {
-                        openWhatsAppOrFallback()
-                    } label: {
-                        Label("Enviar por WhatsApp", systemImage: "message.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    // Share sheet estándar del sistema (siempre funciona)
-                    ShareLink(item: shareText) {
-                        Label("Compartir (más opciones)", systemImage: "square.and.arrow.up")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        dismiss()
-                    } label: {
-                        Text("Ahora no")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding()
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Cerrar") { dismiss() }
                 }
             }
         }
@@ -114,6 +55,114 @@ struct ShareMemorialTipSheet: View {
             Text("No se ha podido abrir WhatsApp. Usa “Compartir (más opciones)”.")
         }
     }
+
+    // MARK: - UI
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(HuellasColor.primaryDark)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Comparte este memorial")
+                    .font(.title3)
+                    .bold()
+                    .foregroundStyle(HuellasColor.textPrimary)
+
+                Text("Invita a amigos y familia para que también puedan encender una vela en honor a \(memorialName).")
+                    .font(.subheadline)
+                    .foregroundStyle(HuellasColor.textSecondary)
+            }
+
+            Spacer()
+        }
+    }
+
+    private var codeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Código para unirse")
+                .font(.headline)
+                .foregroundStyle(HuellasColor.textPrimary)
+
+            HStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(HuellasColor.primaryDark)
+
+                    Text(shareToken)
+                        .font(.system(.title3, design: .monospaced))
+                        .bold()
+                        .foregroundStyle(HuellasColor.textPrimary)
+                }
+                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .background(HuellasColor.backgroundSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(HuellasColor.divider, lineWidth: 1)
+                )
+
+                Spacer(minLength: 0)
+
+                Button {
+                    UIPasteboard.general.string = shareToken
+                    showCopiedAlert = true
+                    Haptics.success()
+                } label: {
+                    Label("Copiar", systemImage: "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+                .tint(HuellasColor.primaryDark)
+            }
+
+            Text("La otra persona abre la app y pega este código en “Unirme a un memorial”.")
+                .font(.footnote)
+                .foregroundStyle(HuellasColor.textSecondary)
+        }
+        .padding()
+        .background(HuellasColor.card)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(HuellasColor.divider, lineWidth: 1)
+        )
+    }
+
+    private var actionButtons: some View {
+        VStack(spacing: 10) {
+            Button {
+                openWhatsAppOrFallback()
+                Haptics.light()
+            } label: {
+                Label("Enviar por WhatsApp", systemImage: "message.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(HuellasColor.primary) // CTA dorado
+
+            ShareLink(item: shareText) {
+                Label("Compartir (más opciones)", systemImage: "square.and.arrow.up")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(HuellasColor.primaryDark)
+
+            Button {
+                dismiss()
+            } label: {
+                Text("Ahora no")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(HuellasColor.primaryDark)
+        }
+        .padding(.top, 4)
+    }
+
+    // MARK: - WhatsApp
 
     private func openWhatsAppOrFallback() {
         let encoded = shareText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
@@ -134,4 +183,3 @@ struct ShareMemorialTipSheet: View {
         }
     }
 }
-

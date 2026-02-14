@@ -10,155 +10,165 @@ import SwiftUI
 /// Formulario para crear una nueva entrada del diario.
 /// Incluye un botón "Necesito unas palabras de ánimo"
 /// que usa IA con límite mensual para usuarios no Premium.
+import SwiftUI
+
 struct NewJournalEntryView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    // Estado de ánimo seleccionado
     @State private var selectedMood: JournalMood = .sad
-
-    // Texto que escribe el usuario
     @State private var text: String = ""
 
-    // Servicio que usaremos para generar mensajes de ánimo
     private let comfortService = ComfortMessageService()
-
-    // Manager de suscripción (para saber si es Premium)
     @StateObject private var subscriptionManager = SubscriptionManager.shared
-
-    // Manager del uso de IA gratuita
     private let aiUsageManager = AIUsageManager()
 
-    // Estado de generación de mensaje de ánimo
     @State private var isGeneratingComfortMessage = false
     @State private var generationErrorMessage: String? = nil
     @State private var showGenerationErrorAlert = false
-
-    // Control para mostrar el Paywall cuando se quede sin mensajes gratis
     @State private var showPaywall = false
 
-    // Closure que la vista padre pasa para manejar el guardado
     let onSave: (JournalMood, String) -> Void
 
+    private var trimmedText: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var body: some View {
-        NavigationStack {
+        HuellasListContainer(topInset: 0) { // ✅ para Form, mejor 0
             Form {
-                // Sección de estado de ánimo
+
                 Section("¿Cómo te sientes hoy?") {
                     Picker("Estado de ánimo", selection: $selectedMood) {
                         ForEach(JournalMood.allCases) { mood in
                             HStack {
                                 Text(mood.emoji)
                                 Text(mood.rawValue)
+                                    .foregroundStyle(HuellasColor.textPrimary)
                             }
                             .tag(mood)
                         }
                     }
+                    .tint(HuellasColor.primaryDark)
                 }
+                .listRowBackground(HuellasColor.card)
 
-                // Sección de texto + botón de IA
                 Section("Cuéntame un poco más") {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $text)
-                            .frame(minHeight: 150)
-                            .padding(.top, 4)
+                            .frame(minHeight: 160)
+                            .foregroundStyle(HuellasColor.textPrimary)
+                            .scrollContentBackground(.hidden)
+                            .background(HuellasColor.backgroundSecondary) // ✅ evita “blanco”
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(HuellasColor.divider, lineWidth: 1)
+                            )
 
                         if text.isEmpty {
                             Text("Escribe lo que sientas…")
-                                .foregroundColor(.secondary)
-                                .padding(.top, 8)
-                                .padding(.leading, 5)
+                                .foregroundStyle(HuellasColor.textSecondary)
+                                .padding(.top, 12)
+                                .padding(.leading, 12)
                         }
                     }
+                    .padding(.vertical, 4)
 
-                    // Info sobre mensajes gratis restantes (solo para no premium)
                     if !subscriptionManager.isPremium {
                         let remaining = aiUsageManager.remainingFreeMessages()
-                        Text(remaining > 0
-                             ? "Te quedan \(remaining) mensajes de ánimo gratis este mes."
-                             : "Has usado todos tus mensajes de ánimo gratis este mes."
-                        )
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: remaining > 0 ? "gift.fill" : "lock.fill")
+                                .foregroundStyle(HuellasColor.primaryDark)
+
+                            Text(
+                                remaining > 0
+                                ? "Te quedan \(remaining) mensajes de ánimo gratis este mes."
+                                : "Has usado todos tus mensajes de ánimo gratis este mes."
+                            )
+                            .font(.caption)
+                            .foregroundStyle(HuellasColor.textSecondary)
+
+                            Spacer()
+                        }
+                        .padding(.top, 2)
                     }
 
-                    // Botón para generar mensaje de ánimo
                     Button {
-                        Task {
-                            await handleGenerateComfortMessageTapped()
-                        }
+                        Task { await handleGenerateComfortMessageTapped() }
                     } label: {
                         if isGeneratingComfortMessage {
-                            HStack {
+                            HStack(spacing: 10) {
                                 ProgressView()
+                                    .tint(HuellasColor.textPrimary)
                                 Text("Buscando palabras de ánimo…")
+                                    .foregroundStyle(HuellasColor.textPrimary)
                             }
+                            .frame(maxWidth: .infinity)
                         } else {
                             Label("Necesito unas palabras de ánimo", systemImage: "sparkles")
+                                .frame(maxWidth: .infinity)
                         }
                     }
                     .disabled(isGeneratingComfortMessage)
+                    .buttonStyle(.borderedProminent)
+                    .tint(HuellasColor.primary) // ✅ CTA dorado
+                    .padding(.top, 6)
                 }
+                .listRowBackground(HuellasColor.card)
             }
+            .scrollContentBackground(.hidden) // ✅ fondo general del Form
             .navigationTitle("Nueva entrada")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // Cancelar
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancelar") {
-                        dismiss()
-                    }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundStyle(HuellasColor.primaryDark)
                 }
 
-                // Guardar
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Guardar") {
                         onSave(selectedMood, text)
                         dismiss()
                     }
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .foregroundStyle(HuellasColor.primaryDark)
+                    .disabled(trimmedText.isEmpty)
                 }
             }
-            // Alert de error al generar mensaje de ánimo
             .alert("No se pudo generar el mensaje", isPresented: $showGenerationErrorAlert) {
                 Button("Aceptar", role: .cancel) { }
             } message: {
                 Text(generationErrorMessage ?? "Ha ocurrido un error inesperado.")
             }
-            // 👇 Aquí mostramos el Paywall cuando no le quedan mensajes gratis
             .sheet(isPresented: $showPaywall) {
                 PaywallView()
             }
         }
     }
 
-    /// Se llama cuando el usuario pulsa el botón de "Necesito unas palabras de ánimo".
+    // MARK: - IA
+
     @MainActor
     private func handleGenerateComfortMessageTapped() async {
         guard !isGeneratingComfortMessage else { return }
 
-        // Si el usuario es Premium, IA ilimitada
         if subscriptionManager.isPremium {
             await generateComfortMessage()
             return
         }
 
-        // Usuario no Premium: comprobar si le quedan mensajes gratis
         if aiUsageManager.canUseFreeMessage() {
-            // Registramos el uso ANTES de llamar, para que si falla igual descuente
             aiUsageManager.registerMessageUsage()
             await generateComfortMessage()
         } else {
             AnalyticsManager.shared.log(AEvent.paywallOpened, [
                 "source": "ai_limit"
-            ])            
-
-            // No le quedan mensajes gratis → mostramos Paywall
+            ])
             showPaywall = true
         }
     }
 
-    /// Llama al servicio de IA y actualiza el texto del editor.
     @MainActor
     private func generateComfortMessage() async {
         guard !isGeneratingComfortMessage else { return }
@@ -177,7 +187,7 @@ struct NewJournalEntryView: View {
                 "is_premium": SubscriptionManager.shared.isPremium ? "1" : "0"
             ])
 
-            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if trimmedText.isEmpty {
                 text = message
             } else {
                 text += "\n\n" + message
@@ -190,5 +200,4 @@ struct NewJournalEntryView: View {
 
         isGeneratingComfortMessage = false
     }
-
 }
