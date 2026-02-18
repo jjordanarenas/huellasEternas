@@ -27,6 +27,8 @@ final class MemorialOrderService {
 
     /// Devuelve el orden del usuario: [(memorialId, relationship)]
     func fetchOrder() async throws -> [MemorialOrderItem] {
+        print("--- UID:", Auth.auth().currentUser?.uid ?? "nil")
+
         guard let uid = Auth.auth().currentUser?.uid else { return [] }
 
         let snap = try await db

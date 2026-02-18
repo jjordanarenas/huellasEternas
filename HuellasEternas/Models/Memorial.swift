@@ -95,3 +95,4 @@ struct Memorial: Identifiable, Hashable, Codable {
         ]
     }
 }
+
