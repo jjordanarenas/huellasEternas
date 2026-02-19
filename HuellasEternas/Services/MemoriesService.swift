@@ -12,27 +12,17 @@ import FirebaseStorage
 final class MemoriesService {
 
     enum MemoriesError: LocalizedError {
-        case freePhotoLimitReached(max: Int)
-        case invalidImage
-        case imageTooLarge
-
+        case freePhotoLimitReached
         var errorDescription: String? {
             switch self {
-            case .freePhotoLimitReached(let max):
-                return "Has alcanzado el límite de \(max) fotos en recuerdos para este memorial. Hazte Premium para añadir más."
-            case .invalidImage:
-                return "No se ha podido leer la imagen seleccionada."
-            case .imageTooLarge:
-                return "La imagen es demasiado grande. Prueba con otra o recórtala."
+            case .freePhotoLimitReached:
+                return "Has alcanzado el límite de fotos en este memorial."
             }
         }
     }
 
     private let db = Firestore.firestore()
     private let storage = Storage.storage()
-
-    // ✅ Ajusta aquí el límite Free
-    private let freeMaxPhotosPerMemorial = 5
 
     private func memoriesRef(memorialId: String) -> CollectionReference {
         db.collection("memorials").document(memorialId).collection("memories")
@@ -48,10 +38,18 @@ final class MemoriesService {
             let title = data["title"] as? String ?? ""
             let text = data["text"] as? String ?? ""
             let photoURL = data["photoURL"] as? String
+            let photoPath = data["photoPath"] as? String
             let ts = data["createdAt"] as? Timestamp
             let createdAt = ts?.dateValue() ?? Date()
 
-            return Memory(id: doc.documentID, title: title, text: text, photoURL: photoURL, createdAt: createdAt)
+            return Memory(
+                id: doc.documentID,
+                title: title,
+                text: text,
+                photoURL: photoURL,
+                photoPath: photoPath,
+                createdAt: createdAt
+            )
         }
     }
 
@@ -64,32 +62,22 @@ final class MemoriesService {
     ) async throws {
 
         var uploadedPhotoURL: String? = nil
+        var uploadedPhotoPath: String? = nil
 
         if let photoData {
-            // ✅ Límite Free (solo si intenta subir foto)
+            // ✅ límite de 5 fotos por memorial para free
             if !isPremium {
-                let count = try await countMemoriesWithPhoto(memorialId: memorialId)
-                if count >= freeMaxPhotosPerMemorial {
-                    throw MemoriesError.freePhotoLimitReached(max: freeMaxPhotosPerMemorial)
+                let snap = try await memoriesRef(memorialId: memorialId)
+                    .whereField("photoPath", isNotEqualTo: NSNull()) // solo con foto
+                    .getDocuments()
+                if snap.count >= 5 {
+                    throw MemoriesError.freePhotoLimitReached
                 }
             }
 
-            // ✅ Compresión + JPEG
-            let jpegData: Data
-            do {
-                jpegData = try ImageCompressor.compressToJPEG(photoData)
-            } catch {
-                // mapeo de errores a algo entendible
-                if (error as? ImageCompressor.CompressionError) == .invalidImageData {
-                    throw MemoriesError.invalidImage
-                } else if (error as? ImageCompressor.CompressionError) == .tooLargeEvenAfterCompression {
-                    throw MemoriesError.imageTooLarge
-                } else {
-                    throw MemoriesError.invalidImage
-                }
-            }
-
-            uploadedPhotoURL = try await uploadPhoto(memorialId: memorialId, jpegData: jpegData)
+            let result = try await uploadPhoto(memorialId: memorialId, data: photoData)
+            uploadedPhotoURL = result.url
+            uploadedPhotoPath = result.path
         }
 
         let memoryId = UUID().uuidString
@@ -97,6 +85,7 @@ final class MemoriesService {
             "title": title,
             "text": text,
             "photoURL": uploadedPhotoURL as Any,
+            "photoPath": uploadedPhotoPath as Any,
             "createdAt": Timestamp(date: Date())
         ]
 
@@ -106,38 +95,32 @@ final class MemoriesService {
     }
 
     func deleteMemory(memorialId: String, memory: Memory) async throws {
+        // 1) Borra el doc
         try await memoriesRef(memorialId: memorialId)
             .document(memory.id)
             .delete()
+
+        // 2) Borra la foto si existe (mejor esfuerzo)
+        if let path = memory.photoPath, !path.isEmpty {
+            let ref = storage.reference(withPath: path)
+            do {
+                try await ref.delete()
+            } catch {
+                // No bloqueamos el borrado del recuerdo si falla la foto.
+                print("⚠️ No se pudo borrar la foto en Storage:", error)
+            }
+        }
     }
 
-    // MARK: - Free limit helper
-
-    /// Cuenta recuerdos que tienen foto (photoURL no vacío)
-    private func countMemoriesWithPhoto(memorialId: String) async throws -> Int {
-        let snap = try await memoriesRef(memorialId: memorialId)
-            .whereField("photoURL", isNotEqualTo: NSNull())
-            .getDocuments()
-
-        // Nota: Firestore con isNotEqualTo puede devolver también docs sin el campo en algunos casos;
-        // si quieres ser ultra-seguro:
-        return snap.documents.filter { doc in
-            let url = doc.data()["photoURL"] as? String
-            return (url?.isEmpty == false)
-        }.count
-    }
-
-    // MARK: - Storage
-
-    private func uploadPhoto(memorialId: String, jpegData: Data) async throws -> String {
+    private func uploadPhoto(memorialId: String, data: Data) async throws -> (url: String, path: String) {
         let path = "memorials/\(memorialId)/memories/\(UUID().uuidString).jpg"
         let ref = storage.reference(withPath: path)
 
         let metadata = StorageMetadata()
-        metadata.contentType = "image/jpeg"   // ✅ CLAVE (ya lo viste)
+        metadata.contentType = "image/jpeg" // ✅ clave para tus reglas
 
-        _ = try await ref.putDataAsync(jpegData, metadata: metadata)
+        _ = try await ref.putDataAsync(data, metadata: metadata)
         let url = try await ref.downloadURL()
-        return url.absoluteString
+        return (url.absoluteString, path)
     }
 }

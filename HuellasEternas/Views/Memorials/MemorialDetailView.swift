@@ -26,6 +26,7 @@ struct MemorialDetailView: View {
 
     @StateObject private var memoriesVM: MemoriesViewModel
     @State private var showAddMemorySheet = false
+    @State private var showMemoriesList = false
 
     private let shareTipTracker = ShareTipTracker()
 
@@ -72,6 +73,9 @@ struct MemorialDetailView: View {
             .task {
                 await viewModel.loadCandles()
                 await memoriesVM.load()
+            }
+            .navigationDestination(isPresented: $showMemoriesList) {
+                MemoriesListView(memoriesVM: memoriesVM)
             }
             .toolbar { shareToolbar }
             .sheet(isPresented: $showCandleFormSheet) { candleFormSheet }
@@ -370,12 +374,25 @@ struct MemorialDetailView: View {
 
     private var memoriesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+
+            // Header
+            HStack(spacing: 10) {
                 Text("Recuerdos")
                     .font(.headline)
                     .foregroundStyle(HuellasColor.textPrimary)
 
                 Spacer()
+
+                // ✅ Ver todos (solo si hay algo)
+                if !memoriesVM.memories.isEmpty {
+                    Button {
+                        showMemoriesList = true
+                    } label: {
+                        Text("Ver todos")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(HuellasColor.primaryDark)
+                    }
+                }
 
                 Button {
                     showAddMemorySheet = true
@@ -385,6 +402,7 @@ struct MemorialDetailView: View {
                 }
             }
 
+            // Content
             if memoriesVM.isLoading {
                 ProgressView("Cargando recuerdos…")
                     .tint(HuellasColor.primaryDark)
@@ -402,16 +420,26 @@ struct MemorialDetailView: View {
                     .foregroundStyle(HuellasColor.textSecondary)
 
             } else {
+                // ✅ Preview (máx 2)
                 VStack(spacing: 10) {
-                    ForEach(memoriesVM.memories) { memory in
+                    ForEach(memoriesVM.memories.prefix(2)) { memory in
                         MemoryCardView(memory: memory)
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    Task { await memoriesVM.delete(memory: memory) }
-                                } label: {
-                                    Label("Borrar", systemImage: "trash")
-                                }
+                    }
+
+                    // CTA extra si hay más
+                    if memoriesVM.memories.count > 2 {
+                        Button {
+                            showMemoriesList = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "list.bullet")
+                                Text("Ver \(memoriesVM.memories.count) recuerdos")
                             }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(HuellasColor.primaryDark)
+                        .padding(.top, 2)
                     }
                 }
                 .padding(.top, 2)
@@ -436,7 +464,7 @@ struct MemorialDetailView: View {
 
                 if memoriesVM.shouldShowPaywall {
                     Haptics.error()
-                    // ✅ esperamos a que el sheet se haya cerrado
+                    // ✅ importante: abrir paywall cuando ya se haya cerrado AddMemoryView
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                         showPaywall = true
                     }
