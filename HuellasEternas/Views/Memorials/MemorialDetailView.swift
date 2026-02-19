@@ -23,10 +23,15 @@ struct MemorialDetailView: View {
 
     @EnvironmentObject var memorialListVM: MemorialListViewModel
     @State private var showShareTip = false
+
+    @StateObject private var memoriesVM: MemoriesViewModel
+    @State private var showAddMemorySheet = false
+
     private let shareTipTracker = ShareTipTracker()
 
     init(memorial: Memorial) {
         _viewModel = StateObject(wrappedValue: MemorialDetailViewModel(memorial: memorial))
+        _memoriesVM = StateObject(wrappedValue: MemoriesViewModel(memorialId: memorial.id.uuidString))
     }
 
     private var memorial: Memorial { viewModel.memorial }
@@ -54,7 +59,7 @@ struct MemorialDetailView: View {
 
                     candlesSection
 
-                    memoriesPlaceholderSection
+                    memoriesSection
 
                     Spacer(minLength: 40)
                 }
@@ -64,7 +69,10 @@ struct MemorialDetailView: View {
             .background(HuellasColor.background) // ✅ refuerzo anti-blancos
             .navigationTitle(memorialName)
             .navigationBarTitleDisplayMode(.inline)
-            .task { await viewModel.loadCandles() }
+            .task {
+                await viewModel.loadCandles()
+                await memoriesVM.load()
+            }
             .toolbar { shareToolbar }
             .sheet(isPresented: $showCandleFormSheet) { candleFormSheet }
             .alert("Vela encendida", isPresented: $showSuccessAlert) { successAlertActions } message: { successAlertMessage }
@@ -357,6 +365,87 @@ struct MemorialDetailView: View {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             showShareTip = true
+        }
+    }
+
+    private var memoriesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Recuerdos")
+                    .font(.headline)
+                    .foregroundStyle(HuellasColor.textPrimary)
+
+                Spacer()
+
+                Button {
+                    showAddMemorySheet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(HuellasColor.primaryDark)
+                }
+            }
+
+            if memoriesVM.isLoading {
+                ProgressView("Cargando recuerdos…")
+                    .tint(HuellasColor.primaryDark)
+                    .font(.subheadline)
+                    .padding(.top, 2)
+
+            } else if let msg = memoriesVM.errorMessage {
+                Text(msg)
+                    .font(.subheadline)
+                    .foregroundStyle(HuellasColor.textSecondary)
+
+            } else if memoriesVM.memories.isEmpty {
+                Text("Añade fotos, anécdotas y momentos especiales para que este memorial sea aún más tuyo.")
+                    .font(.subheadline)
+                    .foregroundStyle(HuellasColor.textSecondary)
+
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(memoriesVM.memories) { memory in
+                        MemoryCardView(memory: memory)
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    Task { await memoriesVM.delete(memory: memory) }
+                                } label: {
+                                    Label("Borrar", systemImage: "trash")
+                                }
+                            }
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding()
+        .background(HuellasColor.card)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(HuellasColor.divider, lineWidth: 1)
+        )
+        .padding(.top, 8)
+        .sheet(isPresented: $showAddMemorySheet) {
+            AddMemoryView { title, text, photoData in
+                let ok = await memoriesVM.add(title: title, text: text, photoData: photoData)
+
+                if ok {
+                    Haptics.success()
+                    return .success
+                }
+
+                if memoriesVM.shouldShowPaywall {
+                    Haptics.error()
+                    // ✅ esperamos a que el sheet se haya cerrado
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        showPaywall = true
+                    }
+                    return .showPaywall
+                }
+
+                Haptics.error()
+                return .error(memoriesVM.errorMessage ?? "No se ha podido guardar el recuerdo.")
+            }
         }
     }
 }
