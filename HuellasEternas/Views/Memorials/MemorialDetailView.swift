@@ -429,12 +429,22 @@ struct MemorialDetailView: View {
             AddMemoryView { title, text, photoData in
                 let ok = await memoriesVM.add(title: title, text: text, photoData: photoData)
 
-                if !ok, memoriesVM.shouldShowPaywall {
-                    showPaywall = true
+                if ok {
+                    Haptics.success()
+                    return .success
                 }
 
-                if ok { Haptics.success() } else { Haptics.error() }
-                return ok
+                if memoriesVM.shouldShowPaywall {
+                    Haptics.error()
+                    // ✅ esperamos a que el sheet se haya cerrado
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        showPaywall = true
+                    }
+                    return .showPaywall
+                }
+
+                Haptics.error()
+                return .error(memoriesVM.errorMessage ?? "No se ha podido guardar el recuerdo.")
             }
         }
     }

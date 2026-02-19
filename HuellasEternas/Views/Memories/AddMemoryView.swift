@@ -9,6 +9,12 @@
 import SwiftUI
 import PhotosUI
 
+enum AddMemoryResult {
+    case success
+    case showPaywall
+    case error(String)
+}
+
 struct AddMemoryView: View {
 
     @Environment(\.dismiss) private var dismiss
@@ -24,7 +30,7 @@ struct AddMemoryView: View {
     @State private var errorText = "No se ha podido guardar el recuerdo."
 
     /// ✅ Ahora devuelve Bool (true = ok)
-    let onSave: (String, String, Data?) async -> Bool
+    let onSave: (String, String, Data?) async -> AddMemoryResult
 
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var trimmedText: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -114,15 +120,20 @@ struct AddMemoryView: View {
         guard canSave else { return }
         isSaving = true
 
-        let ok = await onSave(trimmedTitle, trimmedText, selectedImageData)
+        let result = await onSave(trimmedTitle, trimmedText, selectedImageData)
 
         isSaving = false
 
-        if ok {
+        switch result {
+        case .success:
             dismiss()
-        } else {
-            // El VM ya habrá puesto errorMessage, pero aquí mostramos algo genérico.
-            errorText = "Revisa tu conexión o prueba de nuevo."
+
+        case .showPaywall:
+            // ✅ Importantísimo: cerrar ANTES de que el padre presente el Paywall
+            dismiss()
+
+        case .error(let message):
+            errorText = message
             showErrorAlert = true
         }
     }

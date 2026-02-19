@@ -48,8 +48,8 @@ final class MemoriesViewModel: ObservableObject {
                 title: title,
                 text: text,
                 photoData: photoData,
-                isPremium: SubscriptionManager.shared.isPremium,
-                currentPhotoCount: currentPhotoCount
+                isPremium: SubscriptionManager.shared.isPremium//,
+                //currentPhotoCount: currentPhotoCount
             )
 
             memories = try await service.fetchMemories(memorialId: memorialId)

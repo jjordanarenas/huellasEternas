@@ -5,30 +5,37 @@
 //  Created by Jorge Jordán on 14/2/26.
 //
 
-
 import Foundation
 import FirebaseFirestore
 import FirebaseStorage
-import UIKit
 
 final class MemoriesService {
+
+    enum MemoriesError: LocalizedError {
+        case freePhotoLimitReached(max: Int)
+        case invalidImage
+        case imageTooLarge
+
+        var errorDescription: String? {
+            switch self {
+            case .freePhotoLimitReached(let max):
+                return "Has alcanzado el límite de \(max) fotos en recuerdos para este memorial. Hazte Premium para añadir más."
+            case .invalidImage:
+                return "No se ha podido leer la imagen seleccionada."
+            case .imageTooLarge:
+                return "La imagen es demasiado grande. Prueba con otra o recórtala."
+            }
+        }
+    }
 
     private let db = Firestore.firestore()
     private let storage = Storage.storage()
 
-    // ✅ Límite de fotos (solo Free)
-    private let freePhotoLimitPerMemorial = 5
+    // ✅ Ajusta aquí el límite Free
+    private let freeMaxPhotosPerMemorial = 5
 
     private func memoriesRef(memorialId: String) -> CollectionReference {
         db.collection("memorials").document(memorialId).collection("memories")
-    }
-
-    // ✅ Cuenta cuántas memories con foto hay (rápido: query)
-    private func photoMemoriesCount(memorialId: String) async throws -> Int {
-        let snap = try await memoriesRef(memorialId: memorialId)
-            .whereField("photoURL", isNotEqualTo: NSNull())
-            .getDocuments()
-        return snap.documents.count
     }
 
     func fetchMemories(memorialId: String) async throws -> [Memory] {
@@ -48,29 +55,41 @@ final class MemoriesService {
         }
     }
 
-    /// ✅ Nuevo: `isPremium` para decidir límites
     func addMemory(
         memorialId: String,
         title: String,
         text: String,
         photoData: Data?,
-        isPremium: Bool,
-        currentPhotoCount: Int // ✅ lo pasamos desde VM para no re-consultar aquí
+        isPremium: Bool
     ) async throws {
-
-        // Límite para free (ajústalo)
-        let freePhotoLimit = 3
-
-        if !isPremium, photoData != nil, currentPhotoCount >= freePhotoLimit {
-            throw MemoriesError.freePhotoLimitReached(limit: freePhotoLimit)
-        }
 
         var uploadedPhotoURL: String? = nil
 
         if let photoData {
-            // ✅ Comprime antes de subir (clave para costes y UX)
-            let compressed = try ImageCompressor.compressToJPEG(data: photoData)
-            uploadedPhotoURL = try await uploadPhoto(memorialId: memorialId, data: compressed)
+            // ✅ Límite Free (solo si intenta subir foto)
+            if !isPremium {
+                let count = try await countMemoriesWithPhoto(memorialId: memorialId)
+                if count >= freeMaxPhotosPerMemorial {
+                    throw MemoriesError.freePhotoLimitReached(max: freeMaxPhotosPerMemorial)
+                }
+            }
+
+            // ✅ Compresión + JPEG
+            let jpegData: Data
+            do {
+                jpegData = try ImageCompressor.compressToJPEG(photoData)
+            } catch {
+                // mapeo de errores a algo entendible
+                if (error as? ImageCompressor.CompressionError) == .invalidImageData {
+                    throw MemoriesError.invalidImage
+                } else if (error as? ImageCompressor.CompressionError) == .tooLargeEvenAfterCompression {
+                    throw MemoriesError.imageTooLarge
+                } else {
+                    throw MemoriesError.invalidImage
+                }
+            }
+
+            uploadedPhotoURL = try await uploadPhoto(memorialId: memorialId, jpegData: jpegData)
         }
 
         let memoryId = UUID().uuidString
@@ -87,36 +106,38 @@ final class MemoriesService {
     }
 
     func deleteMemory(memorialId: String, memory: Memory) async throws {
-        // Si quieres: borrar también el archivo en Storage.
         try await memoriesRef(memorialId: memorialId)
             .document(memory.id)
             .delete()
     }
 
-    private func uploadPhoto(memorialId: String, data: Data) async throws -> String {
+    // MARK: - Free limit helper
+
+    /// Cuenta recuerdos que tienen foto (photoURL no vacío)
+    private func countMemoriesWithPhoto(memorialId: String) async throws -> Int {
+        let snap = try await memoriesRef(memorialId: memorialId)
+            .whereField("photoURL", isNotEqualTo: NSNull())
+            .getDocuments()
+
+        // Nota: Firestore con isNotEqualTo puede devolver también docs sin el campo en algunos casos;
+        // si quieres ser ultra-seguro:
+        return snap.documents.filter { doc in
+            let url = doc.data()["photoURL"] as? String
+            return (url?.isEmpty == false)
+        }.count
+    }
+
+    // MARK: - Storage
+
+    private func uploadPhoto(memorialId: String, jpegData: Data) async throws -> String {
         let path = "memorials/\(memorialId)/memories/\(UUID().uuidString).jpg"
         let ref = storage.reference(withPath: path)
 
-        // ✅ metadata (contentType correcto)
         let metadata = StorageMetadata()
-        metadata.contentType = "image/jpeg"
+        metadata.contentType = "image/jpeg"   // ✅ CLAVE (ya lo viste)
 
-        _ = try await ref.putDataAsync(data, metadata: metadata)
+        _ = try await ref.putDataAsync(jpegData, metadata: metadata)
         let url = try await ref.downloadURL()
         return url.absoluteString
-    }
-}
-
-// ✅ Errores “bonitos” para UI
-extension MemoriesService {
-    enum MemoriesError: LocalizedError {
-        case freePhotoLimitReached(limit: Int)
-
-        var errorDescription: String? {
-            switch self {
-            case .freePhotoLimitReached(let limit):
-                return "Has llegado al límite de \(limit) recuerdos con foto. Hazte Premium para añadir más."
-            }
-        }
     }
 }
