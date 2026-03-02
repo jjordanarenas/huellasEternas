@@ -27,16 +27,19 @@ struct MemoriesListView: View {
                         .listRowBackground(HuellasColor.background) // ✅
                     } else {
                         ForEach(memoriesVM.memories) { memory in
-                            MemoryCardView(memory: memory)
-                                .listRowBackground(HuellasColor.card)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        confirmDelete = memory
-                                    } label: {
-                                        Label("Borrar", systemImage: "trash")
-                                    }
-                                    .tint(.red) // ✅ (el rojo del sistema está bien para destructive)
+                            NavigationLink {
+                                MemoryDetailView(memory: memory) // con tu estilo “pro”
+                            } label: {
+                                MemoryCardView(memory: memory)
+                            }
+                            .listRowBackground(HuellasColor.card)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    confirmDelete = memory
+                                } label: {
+                                    Label("Borrar", systemImage: "trash")
                                 }
+                            }
                         }
                     }
                 }
@@ -76,7 +79,7 @@ struct MemoriesListView: View {
 
 // MARK: - Undo Banner
 
-private struct UndoBanner: View {
+struct UndoBanner: View {
     let text: String
     let actionTitle: String
     let onAction: () -> Void
