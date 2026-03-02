@@ -26,7 +26,8 @@ struct MemorialDetailView: View {
 
     @StateObject private var memoriesVM: MemoriesViewModel
     @State private var showAddMemorySheet = false
-    @State private var showMemoriesList = false
+
+    @State private var confirmDeleteMemory: Memory? = nil
 
     private let shareTipTracker = ShareTipTracker()
 
@@ -47,47 +48,119 @@ struct MemorialDetailView: View {
 
     var body: some View {
         HuellasScreen {
-            ScrollView {
-                VStack(spacing: 14) {
-
+            List {
+                // HEADER
+                Section {
                     headerSection
+                        .listRowInsets(rowInsets)
+                        .listRowBackground(Color.clear)
+                }
 
-                    basicInfoSection
-
+                // CTA VELA
+                Section {
                     lightCandleButtonSection
+                        .listRowInsets(rowInsets)
 
                     freeCandlesInfoSection
-
-                    candlesSection
-
-                    memoriesSection
-
-                    Spacer(minLength: 40)
+                        .listRowInsets(rowInsets)
                 }
-                .padding(.horizontal)
-                .padding(.top, 8)
+                .listRowBackground(Color.clear)
+
+                // VELAS
+                Section {
+                    candlesSection
+                        .listRowInsets(rowInsets)
+                        .listRowBackground(Color.clear)
+                }
+
+                // RECUERDOS
+                Section(header: memoriesHeader) {
+                    memoriesRows
+                }
             }
-            .background(HuellasColor.background) // ✅ refuerzo anti-blancos
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(HuellasColor.background)
             .navigationTitle(memorialName)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar { shareToolbar }
             .task {
                 await viewModel.loadCandles()
                 await memoriesVM.load()
             }
-            .navigationDestination(isPresented: $showMemoriesList) {
-                MemoriesListView(memoriesVM: memoriesVM)
-            }
-            .toolbar { shareToolbar }
+
+            // ✅ Sheets/alerts SIEMPRE colgando del root (no dentro de sections calculadas)
             .sheet(isPresented: $showCandleFormSheet) { candleFormSheet }
-            .alert("Vela encendida", isPresented: $showSuccessAlert) { successAlertActions } message: { successAlertMessage }
-            .alert("Error", isPresented: $showErrorAlert) { errorAlertActions } message: { errorAlertMessage }
             .sheet(isPresented: $showPaywall) { PaywallView() }
             .sheet(isPresented: $showShareTip) { shareTipSheet }
+            .sheet(isPresented: $showAddMemorySheet) { addMemorySheet }
+
+            .alert("Vela encendida", isPresented: $showSuccessAlert) { successAlertActions } message: { successAlertMessage }
+            .alert("Error", isPresented: $showErrorAlert) { errorAlertActions } message: { errorAlertMessage }
+
+            .alert(item: $confirmDeleteMemory) { memory in
+                Alert(
+                    title: Text("Borrar recuerdo"),
+                    message: Text("¿Seguro que quieres borrar este recuerdo? Esta acción no se puede deshacer."),
+                    primaryButton: .destructive(Text("Borrar")) {
+                        memoriesVM.requestDeleteWithUndo(memory: memory)
+                    },
+                    secondaryButton: .cancel(Text("Cancelar"))
+                )
+            }
+
+            .overlay(alignment: .bottom) {
+                // Snackbar UNDO (si tu VM lo tiene)
+                if memoriesVM.undoBannerVisible, memoriesVM.pendingUndoMemory != nil {
+                    UndoBanner(
+                        text: "Recuerdo eliminado",
+                        actionTitle: "Deshacer",
+                        onAction: { memoriesVM.undoDelete() }
+                    )
+                    .padding(.bottom, 14)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+
             .onAppear { maybeShowShareTipIfNeeded() }
         }
     }
 
+    // MARK: - Layout helpers
+
+    private var rowInsets: EdgeInsets {
+        EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
+    }
+
     // MARK: - UI Sections
+
+    private var memoriesHeader: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Text("Recuerdos")
+                    .font(.headline)
+                    .foregroundStyle(HuellasColor.textPrimary)
+
+                if !memoriesVM.memories.isEmpty {
+                    Text("(\(memoriesVM.memories.count))")
+                        .font(.subheadline)
+                        .foregroundStyle(HuellasColor.textSecondary)
+                }
+            }
+
+            Spacer()
+
+            Button {
+                showAddMemorySheet = true
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(HuellasColor.primaryDark)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 6)
+    }
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -277,6 +350,104 @@ struct MemorialDetailView: View {
         .padding(.top, 8)
     }
 
+    private var memoriesListSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+
+            // HEADER estilo original
+            HStack(spacing: 10) {
+                Text("Recuerdos")
+                    .font(.headline)
+                    .foregroundStyle(HuellasColor.textPrimary)
+
+                Spacer()
+
+                Button {
+                    showAddMemorySheet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(HuellasColor.primaryDark)
+                }
+            }
+
+            // CONTENT
+            if memoriesVM.isLoading {
+                ProgressView("Cargando recuerdos…")
+                    .tint(HuellasColor.primaryDark)
+                    .font(.subheadline)
+                    .padding(.top, 2)
+
+            } else if let msg = memoriesVM.errorMessage {
+                Text(msg)
+                    .font(.subheadline)
+                    .foregroundStyle(HuellasColor.textSecondary)
+
+            } else if memoriesVM.memories.isEmpty {
+                Text("Añade fotos, anécdotas y momentos especiales para que este memorial sea aún más tuyo.")
+                    .font(.subheadline)
+                    .foregroundStyle(HuellasColor.textSecondary)
+
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(memoriesVM.memories) { memory in
+                        NavigationLink {
+                            MemoryDetailView(memory: memory)
+                        } label: {
+                            MemoryCardView(memory: memory)
+                        }
+                        .buttonStyle(.plain) // mantiene tu diseño limpio
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                confirmDeleteMemory = memory
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding()
+        .background(HuellasColor.card)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(HuellasColor.divider, lineWidth: 1)
+        )
+        .padding(.top, 8)
+        .alert(item: $confirmDeleteMemory) { memory in
+            Alert(
+                title: Text("Borrar recuerdo"),
+                message: Text("¿Seguro que quieres borrar este recuerdo? Esta acción no se puede deshacer."),
+                primaryButton: .destructive(Text("Borrar")) {
+                    memoriesVM.requestDeleteWithUndo(memory: memory)
+                },
+                secondaryButton: .cancel(Text("Cancelar"))
+            )
+        }
+        .sheet(isPresented: $showAddMemorySheet) {
+            AddMemoryView { title, text, photoData in
+                let ok = await memoriesVM.add(title: title, text: text, photoData: photoData)
+
+                if ok {
+                    Haptics.success()
+                    return .success
+                }
+
+                if memoriesVM.shouldShowPaywall {
+                    Haptics.error()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        showPaywall = true
+                    }
+                    return .showPaywall
+                }
+
+                Haptics.error()
+                return .error(memoriesVM.errorMessage ?? "No se ha podido guardar el recuerdo.")
+            }
+        }
+    }
+
     // MARK: - Toolbar / Sheets / Alerts
 
     private var shareToolbar: some ToolbarContent {
@@ -327,6 +498,78 @@ struct MemorialDetailView: View {
         ShareMemorialTipSheet(memorialName: memorialName, shareToken: shareToken)
     }
 
+    @ViewBuilder
+    private var memoriesRows: some View {
+        if memoriesVM.isLoading {
+            ProgressView("Cargando recuerdos…")
+                .tint(HuellasColor.primaryDark)
+                .foregroundStyle(HuellasColor.textSecondary)
+                .listRowBackground(HuellasColor.card)
+                .listRowInsets(rowInsets)
+
+        } else if let msg = memoriesVM.errorMessage {
+            Text(msg)
+                .font(.subheadline)
+                .foregroundStyle(HuellasColor.textSecondary)
+                .listRowBackground(HuellasColor.card)
+                .listRowInsets(rowInsets)
+
+        } else if memoriesVM.memories.isEmpty {
+            ContentUnavailableView(
+                "Aún no hay recuerdos",
+                systemImage: "photo.on.rectangle",
+                description: Text("Añade fotos, anécdotas y momentos especiales.")
+            )
+            .foregroundStyle(HuellasColor.textPrimary)
+            .listRowBackground(Color.clear)
+            .listRowInsets(rowInsets)
+
+        } else {
+            ForEach(memoriesVM.memories) { memory in
+                NavigationLink {
+                    MemoryDetailView(memory: memory)
+                } label: {
+                    MemoryCardView(memory: memory)
+                        .padding(.vertical, 2) // ✅ micro padding
+                }
+                .listRowBackground(HuellasColor.card)
+                .listRowInsets(rowInsets)
+
+                // ✅ Swipe delete (UNA sola vez aquí)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        confirmDeleteMemory = memory
+                    } label: {
+                        // OJO: si quieres evitar icono+texto duplicado, usa solo icono:
+                        Label("Borrar", systemImage: "trash")
+                    }
+                }
+            }
+        }
+    }
+
+    private var addMemorySheet: some View {
+        AddMemoryView { title, text, photoData in
+            let ok = await memoriesVM.add(title: title, text: text, photoData: photoData)
+
+            if ok {
+                Haptics.success()
+                return .success
+            }
+
+            if memoriesVM.shouldShowPaywall {
+                Haptics.error()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    showPaywall = true
+                }
+                return .showPaywall
+            }
+
+            Haptics.error()
+            return .error(memoriesVM.errorMessage ?? "No se ha podido guardar el recuerdo.")
+        }
+    }
+
     // MARK: - Helpers / Logic
 
     private func formatDate(_ date: Date) -> String {
@@ -369,111 +612,6 @@ struct MemorialDetailView: View {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             showShareTip = true
-        }
-    }
-
-    private var memoriesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-
-            // Header
-            HStack(spacing: 10) {
-                Text("Recuerdos")
-                    .font(.headline)
-                    .foregroundStyle(HuellasColor.textPrimary)
-
-                Spacer()
-
-                // ✅ Ver todos (solo si hay algo)
-                if !memoriesVM.memories.isEmpty {
-                    Button {
-                        showMemoriesList = true
-                    } label: {
-                        Text("Ver todos")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(HuellasColor.primaryDark)
-                    }
-                }
-
-                Button {
-                    showAddMemorySheet = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundStyle(HuellasColor.primaryDark)
-                }
-            }
-
-            // Content
-            if memoriesVM.isLoading {
-                ProgressView("Cargando recuerdos…")
-                    .tint(HuellasColor.primaryDark)
-                    .font(.subheadline)
-                    .padding(.top, 2)
-
-            } else if let msg = memoriesVM.errorMessage {
-                Text(msg)
-                    .font(.subheadline)
-                    .foregroundStyle(HuellasColor.textSecondary)
-
-            } else if memoriesVM.memories.isEmpty {
-                Text("Añade fotos, anécdotas y momentos especiales para que este memorial sea aún más tuyo.")
-                    .font(.subheadline)
-                    .foregroundStyle(HuellasColor.textSecondary)
-
-            } else {
-                // ✅ Preview (máx 2)
-                VStack(spacing: 10) {
-                    ForEach(memoriesVM.memories.prefix(2)) { memory in
-                        MemoryCardView(memory: memory)
-                    }
-
-                    // CTA extra si hay más
-                    if memoriesVM.memories.count > 2 {
-                        Button {
-                            showMemoriesList = true
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "list.bullet")
-                                Text("Ver \(memoriesVM.memories.count) recuerdos")
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(HuellasColor.primaryDark)
-                        .padding(.top, 2)
-                    }
-                }
-                .padding(.top, 2)
-            }
-        }
-        .padding()
-        .background(HuellasColor.card)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(HuellasColor.divider, lineWidth: 1)
-        )
-        .padding(.top, 8)
-        .sheet(isPresented: $showAddMemorySheet) {
-            AddMemoryView { title, text, photoData in
-                let ok = await memoriesVM.add(title: title, text: text, photoData: photoData)
-
-                if ok {
-                    Haptics.success()
-                    return .success
-                }
-
-                if memoriesVM.shouldShowPaywall {
-                    Haptics.error()
-                    // ✅ importante: abrir paywall cuando ya se haya cerrado AddMemoryView
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                        showPaywall = true
-                    }
-                    return .showPaywall
-                }
-
-                Haptics.error()
-                return .error(memoriesVM.errorMessage ?? "No se ha podido guardar el recuerdo.")
-            }
         }
     }
 }

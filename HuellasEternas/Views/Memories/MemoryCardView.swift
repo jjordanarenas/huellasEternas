@@ -27,11 +27,11 @@ struct MemoryCardView: View {
             }
         }
         .padding(12)
-        .background(HuellasColor.card) // ✅ card consistente con el resto
+        .background(HuellasColor.backgroundSecondary) // ✅ card consistente con el resto
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(HuellasColor.divider.opacity(0.9), lineWidth: 1)
+                .stroke(HuellasColor.divider.opacity(0.8), lineWidth: 1)
         )
     }
 
@@ -65,14 +65,14 @@ struct MemoryCardView: View {
                 image
                     .resizable()
                     .scaledToFill()
-                    .frame(maxWidth: .infinity, minHeight: 140, maxHeight: 220)
+                    .frame(maxWidth: .infinity, minHeight: 140, maxHeight: 200)
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(HuellasColor.divider, lineWidth: 1)
                     )
-                    .accessibilityLabel("Foto del recuerdo")
+                    .accessibilityAddTraits(.isButton)
 
             case .failure:
                 photoPlaceholder(
