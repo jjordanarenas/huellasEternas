@@ -178,7 +178,7 @@ extension MemorialService {
         for chunk in chunks {
             let snap = try await db
                 .collection("memorials")
-                .whereField("id", in: chunk) // usa tu campo "id" (uuidString)
+                .whereField(FieldPath.documentID(), in: chunk)
                 .getDocuments()
 
             let memorials: [Memorial] = snap.documents.compactMap { (doc) -> Memorial? in
@@ -224,6 +224,66 @@ extension MemorialService {
         }
 
         return results
+    }
+}
+
+extension MemorialService {
+    func fetchOwnedMemorials(ownerUid: String) async throws -> [Memorial] {
+        let snap = try await db
+            .collection("memorials")
+            .whereField("ownerUid", isEqualTo: ownerUid)
+            .order(by: "createdAt", descending: true)
+            .getDocuments()
+
+        let memorials: [Memorial] = snap.documents.compactMap { (doc) -> Memorial? in
+            let data = doc.data()
+
+            // Obligatorios
+            guard
+                let name = data["name"] as? String,
+                let petTypeRaw = data["petType"] as? String,
+                let petType = PetType(rawValue: petTypeRaw),
+                let ownerUid = data["ownerUid"] as? String,
+                !ownerUid.isEmpty
+            else {
+                return nil
+            }
+
+            // ID (preferimos el campo "id", fallback al docId)
+            let idString = (data["id"] as? String) ?? doc.documentID
+            guard let uuid = UUID(uuidString: idString) else { return nil }
+
+            // Opcionales
+            let birthDate = (data["birthDate"] as? Timestamp)?.dateValue()
+            let deathDate = (data["deathDate"] as? Timestamp)?.dateValue()
+            let shortQuote = data["shortQuote"] as? String
+
+            let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+            let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? createdAt
+
+            // shareToken (si falta, generamos uno localmente)
+            let shareToken: String
+            if let token = data["shareToken"] as? String, !token.isEmpty {
+                shareToken = token
+            } else {
+                shareToken = Memorial.generateShareToken()
+            }
+
+            return Memorial(
+                id: uuid,
+                name: name,
+                petType: petType,
+                birthDate: birthDate,
+                deathDate: deathDate,
+                shortQuote: shortQuote,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                ownerUid: ownerUid,
+                shareToken: shareToken
+            )
+        }
+
+        return memorials
     }
 }
 
