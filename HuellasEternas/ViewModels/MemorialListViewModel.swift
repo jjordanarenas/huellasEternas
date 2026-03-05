@@ -36,34 +36,64 @@ final class MemorialListViewModel: ObservableObject {
 
     // MARK: - Cargar memoriales desde Firestore
 
-    /// Carga todos los memoriales desde Firestore y actualiza la lista.
+    /// Carga todos los memoriales desde Firestore y actualiza la lista
     @MainActor
     func loadMemorials() async {
         guard !isLoading else { return }
+        guard let uid = Auth.auth().currentUser?.uid else {
+            loadErrorMessage = "No hay sesión iniciada."
+            return
+        }
 
         isLoading = true
         loadErrorMessage = nil
+        defer { isLoading = false }
 
         do {
-            let orderItems = try await orderService.fetchOrder()
+            let fetchedOrderItems = try await orderService.fetchOrder()
 
-            // Si aún no hay orden guardado, fallback temporal:
-            if orderItems.isEmpty {
-                let fetched = try await memorialService.fetchAllMemorials()
-                self.memorials = fetched
+            // ✅ guarda el orden en memoria (tu archive() lo usa)
+            self.orderItems = fetchedOrderItems
+
+            // ✅ Si aún no hay orden, NO traigas todo: trae solo los del owner
+            if fetchedOrderItems.isEmpty {
+
+                let owned = try await memorialService.fetchOwnedMemorials(ownerUid: uid)
+
+                // Orden razonable para el primer arranque (por fecha)
+                let sortedOwned = owned.sorted { $0.createdAt > $1.createdAt }
+
+                self.memorials = sortedOwned
                 self.archivedMemorials = []
-                isLoading = false
+
+                // ✅ (Recomendado) Seed del orden en background para que ya quede persistido
+                // y no vuelvas a caer en "empty order" en próximos arranques.
+                Task {
+                    do {
+                        // Si tu OrderService tiene bulkUpsert mejor; si no, uno a uno:
+                        for (idx, m) in sortedOwned.enumerated() {
+                            try await orderService.upsert(
+                                memorialId: m.id.uuidString,
+                                relationship: .owned,
+                                sortIndex: idx
+                            )
+                        }
+                    } catch {
+                        print("❌ Error haciendo seed del orden: \(error)")
+                    }
+                }
+
                 return
             }
 
-            let orderedIds = orderItems.map { $0.memorialId }
-
+            // ✅ Caso normal: hay orden -> cargamos exactamente esos IDs
+            let orderedIds = fetchedOrderItems.map { $0.memorialId }
             let fetched = try await memorialService.fetchMemorials(byIds: orderedIds)
+
             let byId = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id.uuidString, $0) })
 
-            // Construimos arrays en el mismo orden de sortIndex
-            let activeIds = orderItems.filter { !$0.isArchived }.map { $0.memorialId }
-            let archivedIds = orderItems.filter { $0.isArchived }.map { $0.memorialId }
+            let activeIds = fetchedOrderItems.filter { !$0.isArchived }.map { $0.memorialId }
+            let archivedIds = fetchedOrderItems.filter { $0.isArchived }.map { $0.memorialId }
 
             self.memorials = activeIds.compactMap { byId[$0] }
             self.archivedMemorials = archivedIds.compactMap { byId[$0] }
@@ -72,8 +102,6 @@ final class MemorialListViewModel: ObservableObject {
             print("❌ Error al cargar memoriales: \(error)")
             self.loadErrorMessage = "No se han podido cargar tus memoriales."
         }
-
-        isLoading = false
     }
 
     // MARK: - Añadir memorial (sigue funcionando igual que antes)
@@ -159,16 +187,25 @@ final class MemorialListViewModel: ObservableObject {
         guard let token = extractShareToken(from: input) else {
             throw JoinMemorialError.invalidInput
         }
+        let normalized = token.uppercased()
 
-        // Evitar duplicados si ya lo tenemos
-        if let existing = memorials.first(where: { $0.shareToken.uppercased() == token }) {
+        if let existing = (memorials + archivedMemorials)
+            .first(where: { $0.shareToken.uppercased() == normalized }) {
             return existing
         }
 
-        // Llamamos al servicio para buscar en Firestore
-        if let found = try await memorialService.fetchMemorial(byShareToken: token) {
-            // Lo añadimos a la lista local para que quede guardado
+        if let found = try await memorialService.fetchMemorial(byShareToken: normalized) {
+
             memorials.append(found)
+
+            // ✅ también actualiza orderItems en memoria (para que archive/restore vaya fino sin reload)
+            orderItems.append(
+                MemorialOrderItem(
+                    memorialId: found.id.uuidString,
+                    relationship: .joined,
+                    isArchived: false
+                )
+            )
 
             Task {
                 do {
@@ -182,16 +219,12 @@ final class MemorialListViewModel: ObservableObject {
                 }
             }
 
-            AnalyticsManager.shared.log(AEvent.joinMemorial, [
-                "result": "success"
-            ])
-
             return found
         } else {
             throw JoinMemorialError.notFound
         }
     }
-
+    
     func moveMemorials(from source: IndexSet, to destination: Int) {
         memorials.move(fromOffsets: source, toOffset: destination)
 
