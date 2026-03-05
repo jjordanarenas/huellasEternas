@@ -14,6 +14,55 @@ final class MemorialService {
 
     private let db = Firestore.firestore()
 
+    // MARK: - Parser
+
+    private func parseMemorial(from doc: DocumentSnapshot) -> Memorial? {
+        let data = doc.data() ?? [:]
+
+        // Obligatorios
+        guard
+            let name = data["name"] as? String,
+            let petTypeRaw = data["petType"] as? String,
+            let petType = PetType(rawValue: petTypeRaw),
+            let ownerUid = data["ownerUid"] as? String,
+            !ownerUid.isEmpty
+        else {
+            return nil
+        }
+
+        // ID (preferimos el campo "id", fallback al docId)
+        let idString = (data["id"] as? String) ?? doc.documentID
+        guard let uuid = UUID(uuidString: idString) else { return nil }
+
+        // Opcionales
+        let birthDate = (data["birthDate"] as? Timestamp)?.dateValue()
+        let deathDate = (data["deathDate"] as? Timestamp)?.dateValue()
+        let shortQuote = data["shortQuote"] as? String
+
+        let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+        let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? createdAt
+
+        let shareToken: String
+        if let token = data["shareToken"] as? String, !token.isEmpty {
+            shareToken = token
+        } else {
+            shareToken = Memorial.generateShareToken()
+        }
+
+        return Memorial(
+            id: uuid,
+            name: name,
+            petType: petType,
+            birthDate: birthDate,
+            deathDate: deathDate,
+            shortQuote: shortQuote,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            ownerUid: ownerUid,
+            shareToken: shareToken
+        )
+    }
+    
     // MARK: - Guardar (crear/actualizar) memorial
 
     /// Guarda un memorial en Firestore bajo:
@@ -57,56 +106,7 @@ final class MemorialService {
             .order(by: "createdAt", descending: false)
             .getDocuments()
 
-        // 👇 IMPORTANTE: tipamos el closure como Memorial? para que `return nil` sea válido
-        let memorials: [Memorial] = snapshot.documents.compactMap { (doc) -> Memorial? in
-            let data = doc.data()
-
-            // Obligatorios
-            guard
-                let name = data["name"] as? String,
-                let petTypeRaw = data["petType"] as? String,
-                let petType = PetType(rawValue: petTypeRaw),
-                let ownerUid = data["ownerUid"] as? String,
-                !ownerUid.isEmpty
-            else {
-                return nil
-            }
-
-            // ID
-            let idString = (data["id"] as? String) ?? doc.documentID
-            guard let uuid = UUID(uuidString: idString) else { return nil }
-
-            // Opcionales
-            let birthDate = (data["birthDate"] as? Timestamp)?.dateValue()
-            let deathDate = (data["deathDate"] as? Timestamp)?.dateValue()
-            let shortQuote = data["shortQuote"] as? String
-
-            let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
-            let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? createdAt
-
-            // shareToken (si falta, generamos uno localmente; idealmente lo migras y lo guardas)
-            let shareToken: String
-            if let token = data["shareToken"] as? String, !token.isEmpty {
-                shareToken = token
-            } else {
-                shareToken = Memorial.generateShareToken()
-            }
-
-            return Memorial(
-                id: uuid,
-                name: name,
-                petType: petType,
-                birthDate: birthDate,
-                deathDate: deathDate,
-                shortQuote: shortQuote,
-                createdAt: createdAt,
-                updatedAt: updatedAt,
-                ownerUid: ownerUid,
-                shareToken: shareToken
-            )
-        }
-
-        return memorials
+        return snapshot.documents.compactMap { parseMemorial(from: $0) }
     }
 
     /// Busca un memorial en Firestore por su shareToken.
@@ -122,44 +122,7 @@ final class MemorialService {
             return nil
         }
 
-        let data = doc.data()
-
-        guard
-            let name = data["name"] as? String,
-            let petTypeRaw = data["petType"] as? String,
-            let petType = PetType(rawValue: petTypeRaw),
-            let ownerUid = data["ownerUid"] as? String,
-            !ownerUid.isEmpty
-        else {
-            return nil
-        }
-
-        let idString = data["id"] as? String ?? doc.documentID
-        guard let uuid = UUID(uuidString: idString) else {
-            return nil
-        }
-
-        let birthDate = (data["birthDate"] as? Timestamp)?.dateValue()
-        let deathDate = (data["deathDate"] as? Timestamp)?.dateValue()
-        let shortQuote = data["shortQuote"] as? String
-
-        let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
-        let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? createdAt
-
-        let shareToken = (data["shareToken"] as? String) ?? token
-
-        return Memorial(
-            id: uuid,
-            name: name,
-            petType: petType,
-            birthDate: birthDate,
-            deathDate: deathDate,
-            shortQuote: shortQuote,
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            ownerUid: ownerUid,
-            shareToken: shareToken
-        )
+        return parseMemorial(from: doc)
     }
 
     enum MemorialServiceError: Error {
@@ -181,44 +144,7 @@ extension MemorialService {
                 .whereField(FieldPath.documentID(), in: chunk)
                 .getDocuments()
 
-            let memorials: [Memorial] = snap.documents.compactMap { (doc) -> Memorial? in
-                // Reutiliza tu parsing actual (con ownerUid, shareToken, etc.)
-                // Si ya tienes un parse común, úsalo aquí.
-                let data = doc.data()
-
-                guard
-                    let name = data["name"] as? String,
-                    let petTypeRaw = data["petType"] as? String,
-                    let petType = PetType(rawValue: petTypeRaw),
-                    let ownerUid = data["ownerUid"] as? String,
-                    !ownerUid.isEmpty
-                else { return nil }
-
-                let idString = (data["id"] as? String) ?? doc.documentID
-                guard let uuid = UUID(uuidString: idString) else { return nil }
-
-                let birthDate = (data["birthDate"] as? Timestamp)?.dateValue()
-                let deathDate = (data["deathDate"] as? Timestamp)?.dateValue()
-                let shortQuote = data["shortQuote"] as? String
-
-                let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
-                let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? createdAt
-
-                let shareToken = (data["shareToken"] as? String) ?? Memorial.generateShareToken()
-
-                return Memorial(
-                    id: uuid,
-                    name: name,
-                    petType: petType,
-                    birthDate: birthDate,
-                    deathDate: deathDate,
-                    shortQuote: shortQuote,
-                    createdAt: createdAt,
-                    updatedAt: updatedAt,
-                    ownerUid: ownerUid,
-                    shareToken: shareToken
-                )
-            }
+            let memorials = snap.documents.compactMap { parseMemorial(from: $0) }
 
             results.append(contentsOf: memorials)
         }
@@ -235,55 +161,7 @@ extension MemorialService {
             .order(by: "createdAt", descending: true)
             .getDocuments()
 
-        let memorials: [Memorial] = snap.documents.compactMap { (doc) -> Memorial? in
-            let data = doc.data()
-
-            // Obligatorios
-            guard
-                let name = data["name"] as? String,
-                let petTypeRaw = data["petType"] as? String,
-                let petType = PetType(rawValue: petTypeRaw),
-                let ownerUid = data["ownerUid"] as? String,
-                !ownerUid.isEmpty
-            else {
-                return nil
-            }
-
-            // ID (preferimos el campo "id", fallback al docId)
-            let idString = (data["id"] as? String) ?? doc.documentID
-            guard let uuid = UUID(uuidString: idString) else { return nil }
-
-            // Opcionales
-            let birthDate = (data["birthDate"] as? Timestamp)?.dateValue()
-            let deathDate = (data["deathDate"] as? Timestamp)?.dateValue()
-            let shortQuote = data["shortQuote"] as? String
-
-            let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
-            let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? createdAt
-
-            // shareToken (si falta, generamos uno localmente)
-            let shareToken: String
-            if let token = data["shareToken"] as? String, !token.isEmpty {
-                shareToken = token
-            } else {
-                shareToken = Memorial.generateShareToken()
-            }
-
-            return Memorial(
-                id: uuid,
-                name: name,
-                petType: petType,
-                birthDate: birthDate,
-                deathDate: deathDate,
-                shortQuote: shortQuote,
-                createdAt: createdAt,
-                updatedAt: updatedAt,
-                ownerUid: ownerUid,
-                shareToken: shareToken
-            )
-        }
-
-        return memorials
+        return snap.documents.compactMap { parseMemorial(from: $0) }
     }
 }
 
